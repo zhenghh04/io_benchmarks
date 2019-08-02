@@ -1,0 +1,9 @@
+#!/bin/sh
+bytes=102457600
+filename="testFile"
+niter=5
+for i in `seq 1 $niter`
+do
+    aprun -n 1 -N 1 ./mpi_write.x -dim $bytes -filename $filename
+    aprun -n 1 -N 1 ./mpi_read.x -dim $bytes -filename $filename
+done
