@@ -1,17 +1,31 @@
 #include <iostream>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <mpi.h>
-#include <stdio.h>
+#include <sstream>
+#ifndef MPIAPI
+#define MPIAPI                  /* defined as __stdcall on Windows */
+#endif
+
 
 using namespace std;
+string itoa(int myInt) {
+  stringstream ss;
+  ss << myInt;
+  string myString = ss.str();
+  return myString; 
+}
 int main(int narg, char * argc[] ) {
   int dim = 1024576; 
   int niter = 1; 
   int i = 0; 
   int ierr, rank, nproc, nblock; 
+  int amode; // access mode
   int filePerProc=0;
   int collective=0;
+  char access='W'; 
+  MPI_Comm comm; 
   nblock = 1; 
   int flush = 1;
   // read command line arguments
@@ -31,15 +45,23 @@ int main(int narg, char * argc[] ) {
     } else if (strcmp(argc[i], "-collective")==0) {
       collective = atoi(argc[i+1]); i+=2;
     } else if (strcmp(argc[i], "-filePerProc")==0) {
-      filePerproc = atoi(argc[i+1]); i+=2;
+      filePerProc = atoi(argc[i+1]); i+=2;
+    } else if (strcmp(argc[i], "-access")==0) {
+      access = argc[i+1][0]; i+=2;
     } else if (strcmp(argc[i], "-filename")==0) {
       filename = argc[i+1]; i+=2; 
     } else {
       i+=1; 
     }
   }
+  if (filePerProc>0) {
+    comm = MPI_COMM_SELF; 
+    const char *pe  = itoa(rank).c_str(); 
+    strcat(filename, pe); 
+  }
 
-  MPI_Comm comm; 
+
+
   MPI_File fh; 
   MPI_Status status; 
   double w_rate = 0.0; 
@@ -54,21 +76,47 @@ int main(int narg, char * argc[] ) {
   char *buffer = new char[tt]; 
   double t0 = MPI_Wtime(); 
   comm = MPI_COMM_WORLD; 
-  MPI_File_open(comm, filename, MPI_MODE_RDWR | MPI_MODE_CREATE, info, &fh); 
+  MPI_File_open(comm, filename, amode, info, &fh); 
   double t1 = MPI_Wtime(); 
   w_open += t1 - t0; 
-  MPI_File_seek(fh, rank*dim, MPI_SEEK_SET); 
-  for (int j=0; j<tt; j++)
-    buffer[j] = char(j%26); 
+  if (access=='W') 
+    for (int j=0; j<tt; j++)
+      buffer[j] = char(j%26); 
   MPI_Barrier(comm);
   double t2 = MPI_Wtime(); 
-  if (collective==0) {
-    for(int j=0; j<nblock; j++) {
-      MPI_File_write_at(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+  if (access=='R') {
+    if (filePerProc>0) {
+      for(int j=0; j<nblock; j++) {
+	MPI_File_seek(fh, j*tt, MPI_SEEK_SET); 
+	MPI_File_read(fh, buffer, tt, MPI_CHAR, &status); 
+      }
+    } else {
+      if (collective==0) {
+	for(int j=0; j<nblock; j++) {
+	  MPI_File_read_at(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+	}
+      } else {
+	for(int j=0; j<nblock; j++) {
+	  MPI_File_read_at_all(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+	}
+      }
     }
   } else {
-    for(int j=0; j<nblock; j++) {
-      MPI_File_write_at_all(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+    if (filePerProc>0) {
+      for(int j=0; j<nblock; j++) {
+	MPI_File_seek(fh, j*tt, MPI_SEEK_SET); 
+	MPI_File_write(fh, buffer, tt, MPI_CHAR, &status); 
+      }
+    } else {
+      if (collective==0) {
+	for(int j=0; j<nblock; j++) {
+	  MPI_File_write_at(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+	}
+      } else {
+	for(int j=0; j<nblock; j++) {
+	  MPI_File_write_at_all(fh, rank*dim+j*tt, buffer, tt, MPI_CHAR, &status); 
+	}
+      }
     }
   }
   double t3 = MPI_Wtime(); 
