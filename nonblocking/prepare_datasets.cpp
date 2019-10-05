@@ -37,7 +37,7 @@ int main(int argc, char * argv[])
   MPI_Request request;
   MPI_Status status;
   int nproc, mype; 
-  int nbatch = 1024;
+  int nbatch = 2048;
   nel = 147 * 1048576;
   buffer = (int32_t *) malloc(nel * sizeof(int32_t));
   for (i = 0; i < nel; i++) {
@@ -50,7 +50,7 @@ int main(int argc, char * argv[])
     string lab="./datasets/batch";
     lab.append(int2string(it));
     char *labs = string2char(lab);
-    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDONLY, info, &handle);
+    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_WRONLY, info, &handle);
     MPI_File_write(handle, buffer, nel, MPI_INT32_T, &status);
     MPI_File_close(&handle);
   }
