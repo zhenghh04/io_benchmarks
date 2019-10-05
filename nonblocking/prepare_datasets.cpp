@@ -30,7 +30,7 @@ void simulate_compute(double n) {
 int main(int argc, char * argv[])
 {
   long nel, i;
-  char * buffer;
+  int32_t * buffer;
   double start_time, total_time;
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
@@ -38,22 +38,43 @@ int main(int argc, char * argv[])
   MPI_Status status;
   int nproc, mype; 
   int nbatch = 2048;
+  int batch_size = 32;
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &mype);
-  nel = 1 * 1048576;
-  buffer = new char [nel];
+
+  for(int i=1; i<argc; i++) {
+    if (strcmp(argv[i], "--batch_size")==0) {
+      batch_size = int(atof(argv[i+1]));
+      i++;
+    } else if (strcmp(argv[i], "--num_batches")==0) {
+      nbatch = int(atof(argv[i+1]));
+      i++;
+    } else {
+      cout << " I don't know option: " << argv[i] << endl; 
+    }
+  }
+
+  if (mype==0) {
+    cout << "Preparing datasets in datasets/batch_" << endl; 
+    cout << "Batch size: " << batch_size << endl;
+    cout << "Number of batches: " << nbatch << endl; 
+  }
+  
+  nel = batch_size * 224*224*3*sizeof(int32_t);
+  buffer = new int32_t [nel];
+
   for (int i = 0; i < nel; i++) {
     buffer[i] = mype;
   }
+
   for(int it = mype; it < nbatch; it+=nproc) {
     string lab="./datasets/batch_";
     lab.append(int2string(it));
     lab.append(".dat");
     char *labs = string2char(lab);
-    cout << labs << endl; 
-    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_WRONLY, info, &handle);
-    MPI_File_write(handle, buffer, nel, MPI_CHAR, &status);
+    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDWR | MPI_MODE_CREATE, info, &handle);
+    MPI_File_write(handle, buffer, nel, MPI_INT32_T, &status);
     MPI_File_close(&handle);
   }
   MPI_Finalize();

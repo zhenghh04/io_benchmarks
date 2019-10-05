@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include<sstream>  
-
+#include <iostream>
 #define RANGE 256
 using namespace std; 
 string int2string(int k) {
@@ -35,29 +35,62 @@ int main(int argc, char * argv[])
   MPI_Info info = MPI_INFO_NULL;
   MPI_Request request;
   MPI_Status status;
+  int nproc, mype; 
   
-  nel = 147 * 1048576;
-  buffer = (int32_t *) malloc(nel * sizeof(int32_t));
-  for (i = 0; i < nel; i++) {
-    buffer[i] = 0;
+
+  int nonblocking=0;
+  int batch_size = 32;
+  int nbatch = 2048;
+  int n=1; 
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+  MPI_Comm_rank(MPI_COMM_WORLD, &mype);
+
+  for(int i=1; i<argc; i++) {
+    if (strcmp(argv[i], "--batch_size")==0) {
+      batch_size = int(atof(argv[i+1]));
+      i++;
+    } else if (strcmp(argv[i], "--num_batches")==0) {
+      nbatch = int(atof(argv[i+1]));
+      i++;
+    } else if (strcmp(argv[i], "--nonblocking")==0) {
+      nonblocking = int(atof(argv[i+1]));
+      i++;
+    } else if (strcmp(argv[i], "--compute_time")==0){
+      n = int(atof(argv[i+1]));
+      i++; 
+    } else {
+      cout << " I don't know option: " << argv[i] << endl; 
+    }
+  }
+
+  if (mype==0) {
+    cout << "Tesing prefetch: " << endl; 
+    cout << "Batch size: " << batch_size << endl;
+    cout << "Number of batches: " << nbatch << endl;
+    cout << "Compute time: " << n << " seconds" << endl;
+    cout << "Number of workers" << nproc << endl; 
   }
   
-  MPI_Init(&argc, &argv);
-  
-  int opt =atof(argv[1]);
-  double n =atof(argv[2]);
-  int nbatch = atof(argv[3]);
+  nel = batch_size * 224*224*3*sizeof(int32_t);
+  buffer = new int32_t [nel];
+
+  for (int i = 0; i < nel; i++) {
+    buffer[i] = mype;
+  }
+
   double io = 0.0;
   double compute = 0.0;
   double wait = 0.0;
   double t0 = 0.0;
   double close = 0.0;
   double open = 0.0; 
-  if (opt==0) {
-    fprintf(stdout, "non-blocking read\n"); 
-    for(int it = 0; it < nbatch; it++) {
-      string lab="./datasets/batch";
+  if (nonblocking>0) {
+    if (mype==0) fprintf(stdout, "non-blocking read\n"); 
+    for(int it = mype; it < nbatch; it+=nproc) {
+      string lab="./datasets/batch_";
       lab.append(int2string(it));
+      lab.append(".dat");
       char *labs = string2char(lab);
       start_time = MPI_Wtime();
       MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDONLY, info, &handle);
@@ -76,11 +109,11 @@ int main(int argc, char * argv[])
       close += MPI_Wtime() - start_time;
     }
   } else {
-    fprintf(stdout, "blocking read\n"); 
-    for(int it=0; it<nbatch; it++) {
-      string lab="./datasets/batch";
-
+    if (mype==0) fprintf(stdout, "blocking read\n"); 
+    for(int it=mype; it<nbatch; it+=nproc) {
+      string lab="./datasets/batch_";
       lab.append(int2string(it));
+      lab.append(".dat");
       char *labs = string2char(lab);
       start_time = MPI_Wtime();
       MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDONLY, info, &handle);
@@ -94,16 +127,18 @@ int main(int argc, char * argv[])
       start_time = MPI_Wtime();
       MPI_File_close(&handle);
       close += MPI_Wtime() - start_time;
-
     }
   }
   double t1 = MPI_Wtime();
-  fprintf(stdout, "open: %.10f \n", open);
-  fprintf(stdout, "io: %.10f \n", io);
-  fprintf(stdout, "close: %.10f \n", close);
-  fprintf(stdout, "wait: %.10f \n", wait);
-  fprintf(stdout, "compute: %.10f \n", compute);
-  fprintf(stdout, "total time: %.10f \n", t1 - t0);
+  if (mype==0) {
+    cout << "Timing information " << endl; 
+    fprintf(stdout, "open: %.10f \n", open);
+    fprintf(stdout, "io: %.10f \n", io);
+    fprintf(stdout, "close: %.10f \n", close);
+    fprintf(stdout, "wait: %.10f \n", wait);
+    fprintf(stdout, "compute: %.10f \n", compute);
+    fprintf(stdout, "total time: %.10f \n", t1 - t0);
+  }
   MPI_Finalize();
   return 0; 
 }

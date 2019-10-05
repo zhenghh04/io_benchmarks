@@ -11,3 +11,11 @@ prefetch:
 
 prepare_datasets:
 	$(CC) $(CFLAGS) -o prepare_datasets.x prepare_datasets.cpp $(HPCTW)
+
+clean:
+	rm -rf *.x mpi_profile.*
+
+remove_datasets:
+	rm -rf datasets/*
+
+
