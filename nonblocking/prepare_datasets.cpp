@@ -5,7 +5,7 @@
 #include <string.h>
 #include <unistd.h>
 #include<sstream>  
-
+#include <iostream>
 #define RANGE 256
 using namespace std; 
 string int2string(int k) {
@@ -30,7 +30,7 @@ void simulate_compute(double n) {
 int main(int argc, char * argv[])
 {
   long nel, i;
-  int32_t * buffer;
+  char * buffer;
   double start_time, total_time;
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
@@ -38,20 +38,22 @@ int main(int argc, char * argv[])
   MPI_Status status;
   int nproc, mype; 
   int nbatch = 2048;
-  nel = 147 * 1048576;
-  buffer = (int32_t *) malloc(nel * sizeof(int32_t));
-  for (i = 0; i < nel; i++) {
-    buffer[i] = 0;
-  }
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-  MPI_Comm_rank(MPI_COMM_WORLD, &mype); 
-  for(int it = mype; it < nbatch; it+nproc) {
-    string lab="./datasets/batch";
+  MPI_Comm_rank(MPI_COMM_WORLD, &mype);
+  nel = 1 * 1048576;
+  buffer = new char [nel];
+  for (int i = 0; i < nel; i++) {
+    buffer[i] = mype;
+  }
+  for(int it = mype; it < nbatch; it+=nproc) {
+    string lab="./datasets/batch_";
     lab.append(int2string(it));
+    lab.append(".dat");
     char *labs = string2char(lab);
+    cout << labs << endl; 
     MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_WRONLY, info, &handle);
-    MPI_File_write(handle, buffer, nel, MPI_INT32_T, &status);
+    MPI_File_write(handle, buffer, nel, MPI_CHAR, &status);
     MPI_File_close(&handle);
   }
   MPI_Finalize();

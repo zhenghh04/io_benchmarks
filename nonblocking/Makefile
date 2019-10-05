@@ -2,8 +2,9 @@
 #!/bin/sh
 CC=mpicxx 
 CFLAGS=-O3
-HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
-all: prefetch datasets
+#HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
+HPCTW=-L$(HOME)/mylibs -lmpitrace
+all: prefetch prepare_datasets
 
 prefetch:
 	$(CC) $(CFLAGS) -o test_prefetch.x test_prefetch.cpp $(HPCTW)
