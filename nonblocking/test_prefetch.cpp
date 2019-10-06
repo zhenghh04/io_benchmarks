@@ -41,7 +41,7 @@ int main(int argc, char * argv[])
   int nonblocking=0;
   int batch_size = 32;
   int nbatch = 2048;
-  int n=1; 
+  double n=1.0; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &mype);
@@ -57,7 +57,7 @@ int main(int argc, char * argv[])
       nonblocking = int(atof(argv[i+1]));
       i++;
     } else if (strcmp(argv[i], "--compute_time")==0){
-      n = int(atof(argv[i+1]));
+      n = atof(argv[i+1]);
       i++; 
     } else {
       cout << " I don't know option: " << argv[i] << endl; 
@@ -69,7 +69,7 @@ int main(int argc, char * argv[])
     cout << "Batch size: " << batch_size << endl;
     cout << "Number of batches: " << nbatch << endl;
     cout << "Compute time: " << n << " seconds" << endl;
-    cout << "Number of workers" << nproc << endl; 
+    cout << "Number of workers: " << nproc << endl; 
   }
   
   nel = batch_size * 224*224*3*sizeof(int32_t);
@@ -82,9 +82,9 @@ int main(int argc, char * argv[])
   double io = 0.0;
   double compute = 0.0;
   double wait = 0.0;
-  double t0 = 0.0;
   double close = 0.0;
   double open = 0.0; 
+  double t0 = MPI_Wtime();
   if (nonblocking>0) {
     if (mype==0) fprintf(stdout, "non-blocking read\n"); 
     for(int it = mype; it < nbatch; it+=nproc) {
