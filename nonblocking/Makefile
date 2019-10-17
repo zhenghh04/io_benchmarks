@@ -1,6 +1,7 @@
 #Makefile
 #!/bin/sh
-CC=mpicxx 
+#CC=mpicxx 
+CC=mpixlcxx_r
 CFLAGS=-O3
 #HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
 HPCTW=-L$(HOME)/mylibs -lmpitrace_mpich
