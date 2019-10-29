@@ -1,9 +1,11 @@
 #Makefile
 #!/bin/sh
 #CC=mpicxx 
-CC=mpixlcxx_r
+CC=mpicxx
+#CC=icc -I/home/hzheng/opt/mpich-3.3.1-ugni/include
+#HPCTW=/home/hzheng/opt/mpich-3.3.1-ugni/lib/libmpi.a
 CFLAGS=-O3
-HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
+#HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
 #HPCTW=-L$(HOME)/mylibs -lmpitrace
 all: prefetch prepare_datasets
 
