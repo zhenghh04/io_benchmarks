@@ -1,10 +1,10 @@
 #Makefile
 #!/bin/sh
-#CC=mpicxx 
-CC=mpixlcxx_r
+CC=mpicxx 
+#CC=mpixlcxx_r
 CFLAGS=-O3
 #HPCTW=-L/soft/perftools/hpctw/lib -lmpitrace
-HPCTW=-L$(HOME)/mylibs -lmpitrace_mpich
+HPCTW=-lmpitrace_mpich
 all: prefetch prepare_datasets
 
 prefetch:
