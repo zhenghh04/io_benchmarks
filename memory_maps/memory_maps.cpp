@@ -19,6 +19,7 @@
 #include <string>
 using namespace std; 
 
+#include <cstdlib>
 #include <sstream>
 template <typename T>
 string itoa ( T Number)
@@ -48,7 +49,15 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
+  bool prt=false;
+  char *debug = "0"; 
+  try {
+    debug = getenv("DEBUG");
+  }
+  catch (const std::exception& e) {
+    cout << "error" << endl; 
+  }
+  if ((strcmp(debug, "1")==0) or (strcmp(debug, "yes")==0)) prt=true;
   while (i<argc) {
     if (strcmp(argv[i], "--dim") == 0) {
       dim = atoi(argv[i+1]); 
@@ -116,7 +125,7 @@ int main(int argc, char *argv[]) {
   int *resultlen; 
 
   ofstream myfile;
-
+  int err; 
   char f[100]; 
   strcpy(f, ssd); 
   strcat(f, "/file-"); 
@@ -134,7 +143,13 @@ int main(int argc, char *argv[]) {
     for(int i=0; i<dim; i++)
       array[i] = i+j;
     clock_t t01 = clock();
-    if (rank==0) cout << j <<  " - Write Time: " << float(t01 - t00)/CLOCKS_PER_SEC << endl;
+    msync(addr, size, err); 
+    clock_t t02 = clock();
+    if (prt) {
+      if (rank==0) cout << j <<  " - Array Time: " << float(t01 - t00)/CLOCKS_PER_SEC << endl;
+      if (rank==0) cout << j <<  " -  Sync Time: " << float(t02 - t01)/CLOCKS_PER_SEC << endl;
+    }
+    
   }
   t1 = clock();
   munmap(addr, size);
@@ -144,9 +159,8 @@ int main(int argc, char *argv[]) {
     cout << "Write Rate: " << size/(float(t1 - t0)/CLOCKS_PER_SEC)/1024/1024*niter*nproc << " MB/sec" << endl;
     cout << "------------------------------------------------" << endl;
   }
-#ifdef DEBUG
-  printf("SSD files: %s (Rank-%d)", f, rank);
-#endif
+  if (prt) printf("SSD files: %s (Rank-%d)", f, rank);
+
   addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   t0 = clock();
   char f2[100]; 
