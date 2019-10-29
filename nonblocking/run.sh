@@ -3,8 +3,13 @@
 #Example to run the jobs
 #
 run=mpirun
+<<<<<<< HEAD
 #$run -np 48 -ppn 12 ./prepare_datasets.x --num_batches 480 --batch_size 512
 echo "==========================="
 $run -np 48 -ppn 12 ./test_prefetch.x --num_batches 480 --batch_size 512 --compute_time 0.5 --nonblocking 0 
 echo "==========================="
 $run -np 48 -ppn 12 ./test_prefetch.x --num_batches 480 --batch_size 512 --compute_time 0.5 --nonblocking 1 
+=======
+$run -np 4 ./prepare_datasets.x --num_batches 16 --batch_size 32
+$run -np 4 ./test_prefetch.x --num_batches 16 --batch_size 32 --compute_time 4
+>>>>>>> 22ec7a72cc3c852e529799f8001f945632ab712d
