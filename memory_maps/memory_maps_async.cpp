@@ -173,20 +173,22 @@ int main(int argc, char *argv[]) {
   niter = 1;
   MPI_Request request[niter]; 
   MPI_Status statusall[niter]; 
-  t0 = clock(); 
-  MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
-  t1 = clock();
-  S2L.open += float(t1 - t0)/CLOCKS_PER_SEC; 
-  MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request[i]);
   t0 = clock();
-  S2L.raw += float(t0 - t1)/CLOCKS_PER_SEC; 
-  MPI_Waitall(niter, request, statusall); 
-  t1 = clock();
-  S2L.wait += float(t1 - t0)/CLOCKS_PER_SEC; 
-  MPI_File_close(&handle);
-  t0 = clock();
-  S2L.close += float(t0 - t1)/CLOCKS_PER_SEC; 
-  S2L.rep = 1;
+  for (int i=0; i<niter; i++) {
+    MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+    t1 = clock();
+    S2L.open += float(t1 - t0)/CLOCKS_PER_SEC; 
+    MPI_File_write_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, MPI_STATUS_IGNORE);
+    t0 = clock();
+    S2L.raw += float(t0 - t1)/CLOCKS_PER_SEC; 
+    //    MPI_Waitall(niter, request, statusall); 
+    t1 = clock();
+    S2L.wait += float(t1 - t0)/CLOCKS_PER_SEC; 
+    MPI_File_close(&handle);
+    t0 = clock();
+    S2L.close += float(t0 - t1)/CLOCKS_PER_SEC; 
+    S2L.rep += 1;
+  }
   if (rank==0) {
     cout << "\n--------------- Node-local SSD to lustre -----" << endl; 
     cout << "Open time (s): " << S2L.open/S2L.rep << endl; 

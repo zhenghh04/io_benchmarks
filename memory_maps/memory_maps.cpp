@@ -19,8 +19,16 @@
 #include <string>
 using namespace std; 
 
-#include <cstdlib>
 #include <sstream>
+struct IOT
+{
+  float open=0.0; 
+  float raw=0.0;
+  float close=0.0; 
+  float wait=0.0; 
+  int rep=0;
+};
+
 template <typename T>
 string itoa ( T Number)
 {
@@ -49,15 +57,7 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  bool prt=false;
-  char *debug = "0"; 
-  try {
-    debug = getenv("DEBUG");
-  }
-  catch (const std::exception& e) {
-    cout << "error" << endl; 
-  }
-  if ((strcmp(debug, "1")==0) or (strcmp(debug, "yes")==0)) prt=true;
+
   while (i<argc) {
     if (strcmp(argv[i], "--dim") == 0) {
       dim = atoi(argv[i+1]); 
@@ -99,91 +99,139 @@ int main(int argc, char *argv[]) {
     printf("-------------------------------------------\n"); 
   }
 
-  clock_t t0 = clock(); 
+  clock_t t0, t1; 
   int *myarray = new int [dim];
   for(int i=0; i<dim; i++) {
     myarray[i] = i; 
   }
-  t0 = clock();
+
   char f1[100]; 
   strcpy(f1, lustre); 
   strcat(f1, "/file-mem2lustre.dat"); 
+  IOT M2L, M2S, M2MMF, MMF2L; 
   for(int i=0; i<niter; i++) {
+    t0 = clock();
     MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+    t1 = clock();
+    M2L.open += float(t1 - t0)/CLOCKS_PER_SEC;
     MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+    t0 = clock();
+    M2L.raw += float(t0 - t1)/CLOCKS_PER_SEC;
     MPI_File_close(&handle);
+    t1  = clock();
+    M2L.close +=  float(t1 - t0)/CLOCKS_PER_SEC;
+    M2L.rep++; 
   }
-  clock_t t1 = clock();
   if (rank==0) {
     cout << "\n--------------- Memory to Lustre (direct) -----" << endl; 
-    cout << "Write Time: " << float(t1 - t0)/CLOCKS_PER_SEC/niter << " seconds" << endl;
-    cout << "Write Rate: " << size/(float(t1 - t0)/CLOCKS_PER_SEC)/1024/1024*niter*nproc << " MB/sec" << endl;
+    cout << "Open time (s): " << M2L.open/M2L.rep << endl; 
+    cout << "Write time (s): " << M2L.raw/M2L.rep << endl; 
+    cout << "Close time (s): " << M2L.close/M2L.rep << endl; 
+    cout << "Write rate: " << size/M2L.raw/1024/1024*M2L.rep*nproc << " MB/sec" << endl;
     cout << "-----------------------------------------------" << endl; 
   }
+
+
+  char fn[100]; 
+  strcpy(fn, ssd); 
+  strcat(fn, "/file-mem2ssd.dat"); 
+  for(int i=0; i<niter; i++) {
+    t0 = clock();
+    MPI_File_open(MPI_COMM_WORLD, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+    t1 = clock();
+    M2S.open += float(t1 - t0)/CLOCKS_PER_SEC;
+    MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+    t0 = clock();
+    M2S.raw += float(t0 - t1)/CLOCKS_PER_SEC;
+    MPI_File_close(&handle);
+    t1  = clock();
+    M2S.close +=  float(t1 - t0)/CLOCKS_PER_SEC;
+    M2S.rep++; 
+  }
+  if (rank==0) {
+    cout << "\n--------------- Memory to SSD (direct) -----" << endl; 
+    cout << "Open time (s): " << M2S.open/M2S.rep << endl;
+    cout << "Write time (s): " << M2S.raw/M2S.rep << endl;
+
+    cout << "Close time (s): " << M2S.close/M2S.rep << endl; 
+    cout << "Write rate: " << size/M2S.raw/1024/1024*M2S.rep*nproc << " MB/sec" << endl;
+    cout << "-----------------------------------------------" << endl; 
+  }
+
+
+
+  
   //staging time
   char *name; 
   int *resultlen; 
 
   ofstream myfile;
-  int err; 
+  int err;
   char f[100]; 
   strcpy(f, ssd); 
   strcat(f, "/file-"); 
   strcat(f, itoa(local_rank).c_str()); 
   strcat(f, ".dat"); 
+  t0 = clock();
   int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
   lseek(fd, size, SEEK_SET);
   write(fd, "A", 1);
-  t0 = clock();
   void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
   if (addr == (void*) -1 ) QUIT;
   int *array = (int*) addr;
   for(int j=0; j<niter; j++) {
-    clock_t t00=clock();
     for(int i=0; i<dim; i++)
       array[i] = i+j;
-    clock_t t01 = clock();
-    msync(addr, size, err); 
-    clock_t t02 = clock();
-    if (prt) {
-      if (rank==0) cout << j <<  " - Array Time: " << float(t01 - t00)/CLOCKS_PER_SEC << endl;
-      if (rank==0) cout << j <<  " -  Sync Time: " << float(t02 - t01)/CLOCKS_PER_SEC << endl;
-    }
-    
   }
+  msync(addr, size, err);
   t1 = clock();
+  M2MMF.raw += float(t1 - t0)/CLOCKS_PER_SEC;
   munmap(addr, size);
   if (rank==0) {
-    cout << "\n--------------- Memory to node-local SSD -------" << endl; 
-    cout << "Write Time: " << float(t1 - t0)/CLOCKS_PER_SEC/niter << " seconds" << endl;
-    cout << "Write Rate: " << size/(float(t1 - t0)/CLOCKS_PER_SEC)/1024/1024*niter*nproc << " MB/sec" << endl;
+    cout << "\n--------------- Memory to mmap file -------" << endl; 
+    cout << "Write time (s): " << M2MMF.raw/niter << endl; 
+    cout << "Write Rate: " << size/M2MMF.raw/1024/1024*niter*nproc << " MB/sec" << endl;
     cout << "------------------------------------------------" << endl;
   }
-  if (prt) printf("SSD files: %s (Rank-%d)", f, rank);
-
+#ifdef DEBUG
+  printf("SSD files: %s (Rank-%d)", f, rank);
+#endif
   addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-  t0 = clock();
+
   char f2[100]; 
   strcpy(f2, lustre); 
-  strcat(f2, "/file-ssd2lustre.dat"); 
+  strcat(f2, "/file-mmf2lustre.dat");
+  niter =1;
   int *array2 = (int*) addr;
   MPI_Request request[niter]; 
-  MPI_Status statusall[niter]; 
-  for(int i=0; i<niter; i++) {
+  MPI_Status statusall[niter];
+  for (int i=0; i<niter; i++) {
+    t0 = clock(); 
     MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
-    MPI_File_write_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, MPI_STATUS_IGNORE);
+    t1 = clock();
+    MMF2L.open += float(t1 - t0)/CLOCKS_PER_SEC; 
+    MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request[i]);
+    t0 = clock();
+    MMF2L.raw += float(t0 - t1)/CLOCKS_PER_SEC; 
+    MPI_Waitall(niter, request, statusall); 
+    t1 = clock();
+    MMF2L.wait += float(t1 - t0)/CLOCKS_PER_SEC; 
     MPI_File_close(&handle);
+    t0 = clock();
+    MMF2L.close += float(t0 - t1)/CLOCKS_PER_SEC; 
+    MMF2L.rep ++;
   }
-  t1 = clock();
-  //MPI_Waitall(niter, request, statusall); 
-  clock_t t2=clock();
   if (rank==0) {
-    cout << "\n--------------- Node-local SSD to lustre -----" << endl; 
-    //cout << "iwrite Time: " << float(t1 - t0)/CLOCKS_PER_SEC/niter << " seconds" << endl;
-    //cout << "Wait Time: " << float(t2 - t1)/CLOCKS_PER_SEC/niter << " seconds" << endl;
-    cout << "Write Rate: " << size/(float(t2 - t0)/CLOCKS_PER_SEC)/1024/1024*niter*nproc << " MB/sec" << endl;
+    cout << "\n--------------- memmap file to lustre -----" << endl; 
+    cout << "Open time (s): " << MMF2L.open/MMF2L.rep << endl; 
+    cout << "Write time (s): " << MMF2L.raw/MMF2L.rep << endl; 
+    cout << "Wait time (s): " << MMF2L.wait/MMF2L.rep << endl; 
+    cout << "Close time (s): " << MMF2L.close/MMF2L.rep << endl; 
+    cout << "Write rate: " << size/(MMF2L.raw+MMF2L.wait)/1024/1024*MMF2L.rep*nproc << " MB/sec" << endl;
     cout << "---------------------------------------------" << endl;
   }
+
+  
   munmap(addr, size);
   MPI_Finalize();
   return 0;
