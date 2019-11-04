@@ -17,6 +17,7 @@
 #include "time.h"
 #include "mpi.h"
 #include <string>
+#include <sys/stat.h>
 using namespace std; 
 
 #include <sstream>
@@ -25,7 +26,8 @@ struct IOT
   float open=0.0; 
   float raw=0.0;
   float close=0.0; 
-  float wait=0.0; 
+  float wait=0.0;
+  float sync = 0.0; 
   int rep=0;
 };
 
@@ -106,7 +108,8 @@ int main(int argc, char *argv[]) {
   }
 
   char f1[100]; 
-  strcpy(f1, lustre); 
+  strcpy(f1, lustre);
+  mkdir(lustre, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); 
   strcat(f1, "/file-mem2lustre.dat"); 
   IOT M2L, M2S, M2MMF, MMF2L; 
   for(int i=0; i<niter; i++) {
@@ -120,20 +123,25 @@ int main(int argc, char *argv[]) {
     MPI_File_close(&handle);
     t1  = clock();
     M2L.close +=  float(t1 - t0)/CLOCKS_PER_SEC;
+    MPI_File_sync(handle);
+    t0 = clock();
+    M2L.sync += float(t0 - t1)/CLOCKS_PER_SEC; 
     M2L.rep++; 
   }
   if (rank==0) {
     cout << "\n--------------- Memory to Lustre (direct) -----" << endl; 
     cout << "Open time (s): " << M2L.open/M2L.rep << endl; 
-    cout << "Write time (s): " << M2L.raw/M2L.rep << endl; 
-    cout << "Close time (s): " << M2L.close/M2L.rep << endl; 
+    cout << "Write time (s): " << M2L.raw/M2L.rep << endl;
+    cout << "Close time (s): " << M2L.close/M2L.rep << endl;
+    cout << "Sync time (s): " << M2L.sync/M2L.rep << endl; 
     cout << "Write rate: " << size/M2L.raw/1024/1024*M2L.rep*nproc << " MB/sec" << endl;
     cout << "-----------------------------------------------" << endl; 
   }
 
 
   char fn[100]; 
-  strcpy(fn, ssd); 
+  strcpy(fn, ssd);
+  mkdir(ssd, S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH); 
   strcat(fn, "/file-mem2ssd.dat"); 
   for(int i=0; i<niter; i++) {
     t0 = clock();
@@ -146,14 +154,18 @@ int main(int argc, char *argv[]) {
     MPI_File_close(&handle);
     t1  = clock();
     M2S.close +=  float(t1 - t0)/CLOCKS_PER_SEC;
+    MPI_File_sync(handle);
+    t0  = clock();
+    M2S.sync += float(t0-t1)/CLOCKS_PER_SEC; 
+
     M2S.rep++; 
   }
   if (rank==0) {
     cout << "\n--------------- Memory to SSD (direct) -----" << endl; 
     cout << "Open time (s): " << M2S.open/M2S.rep << endl;
     cout << "Write time (s): " << M2S.raw/M2S.rep << endl;
-
-    cout << "Close time (s): " << M2S.close/M2S.rep << endl; 
+    cout << "Close time (s): " << M2S.close/M2S.rep << endl;
+    cout << "Sync time (s): " << M2S.sync/M2S.rep << endl;
     cout << "Write rate: " << size/M2S.raw/1024/1024*M2S.rep*nproc << " MB/sec" << endl;
     cout << "-----------------------------------------------" << endl; 
   }
