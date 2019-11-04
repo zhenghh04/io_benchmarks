@@ -242,8 +242,6 @@ int main(int argc, char *argv[]) {
     cout << "Write rate: " << size/(MMF2L.raw+MMF2L.wait)/1024/1024*MMF2L.rep*nproc << " MB/sec" << endl;
     cout << "---------------------------------------------" << endl;
   }
-
-  
   munmap(addr, size);
   MPI_Finalize();
   return 0;

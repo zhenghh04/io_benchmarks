@@ -76,7 +76,6 @@ int main(int argc, char **argv) {
   // set up dataset access property list 
   plist_id = H5Pcreate(H5P_DATASET_XFER);
 
-
   H5Pset_dxpl_mpio(plist_id, H5FD_MPIO_COLLECTIVE);
   // define local memory space
   hid_t memspace = H5Screate_simple(2, ldims, NULL);
