@@ -12,12 +12,12 @@ from common import *
 from numpy.random import randint
 parser = argparse.ArgumentParser(description='IOR Benchmark test')
 parser.add_argument('--api', default='MPIIO')
-parser.add_argument('--blockSize', default='512k')
+parser.add_argument('--blockSize', default='8m')
 parser.add_argument('--filePerProc', default=0, type=int)
 parser.add_argument('--collective', default=0, type=int)
 parser.add_argument('--lustreStripeCount', default=1, type=int)
 parser.add_argument('--lustreStripeSize', default='1m')
-parser.add_argument('--transferSize', default='32k')
+parser.add_argument('--transferSize', default='8m')
 parser.add_argument('--keepFile', default=0, type=int)
 if socket.gethostname()=='zion':
     parser.add_argument('--numNodes', default=1, type=int)
@@ -31,6 +31,7 @@ parser.add_argument('--useFileView', default=0, type=int)
 parser.add_argument('--jobid', default=None, type=int)
 parser.add_argument('--ssd', action='store_true')
 parser.add_argument('--fsyncPerWrite', action='store_true')
+parser.add_argument('--fsync', action='store_true')
 args = parser.parse_args()
 api=args.api
 blockSize=args.blockSize
@@ -88,10 +89,14 @@ f.write("   RUN\n")
 f.write("IOR STOP\n")
 f.close()
 f = os.system('cat %s/%s.cfg'%(sdir, jobid))
-if socket.gethostname()=='zion':
-    RUN="mpirun -n %s $HOME/opt/HPC-IOR/bin/ior" %(args.procPerNode*args.numNodes)
+if args.fsync:
+    extra = '-e'
 else:
-    RUN="aprun -n %s -N %s -d %s -j 1 -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior"%(args.procPerNode*args.numNodes, args.procPerNode, 64//args.procPerNode)
+    extra=""
+if socket.gethostname()=='zion':
+    RUN="mpirun -n %s $HOME/opt/HPC-IOR/bin/ior %s" %(args.procPerNode*args.numNodes, extra)
+else:
+    RUN="aprun -n %s -N %s -d %s -j 1 -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior %s"%(args.procPerNode*args.numNodes, args.procPerNode, 64//args.procPerNode, extra)
 cmd = 'dir=$PWD; cd %s; %s -f $dir/%s/%s.cfg >& $dir/%s/%s.log; tail $dir/%s/%s.log; cd $PWD'%(sdir, RUN, sdir, jobid, sdir, jobid, sdir, jobid)
 print(cmd)
 
