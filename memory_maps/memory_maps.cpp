@@ -207,7 +207,7 @@ int main(int argc, char *argv[]) {
 #ifdef DEBUG
   printf("SSD files: %s (Rank-%d)", f, rank);
 #endif
-  int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
+  int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
   void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
   char f2[100]; 
