@@ -1,23 +1,21 @@
 #Makefile
 #!/bin/sh
-
-CC=mpicc
 CFLAGS=-O3
-#HPCTW_LIB=-L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
 ifeq ($(HOSTNAME), zion)
 	CC=g++
 	HPCTW=$(HOME)/opt/hpctw
+	MPI_LIBS=-Wl,-rpaht,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
+	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 else
-	HPCTW=$(HOME)/soft/hpctw/cray
+	CC=mpicc
+	HPCTW=$(HOME)/soft/hpctw/intel
+	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz 
 endif
-HPCTW_LIB=-L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
-CC=CC
+LIBS=$(HPCTW_LIBS) $(MPI_LIBS)
 
-
-all: memory_maps memory_maps_async
+all: memory_maps
 memory_maps:
-	$(CC) $(CFLAGS) -o memory_maps.x memory_maps.cpp $(HPCTW_LIB)
-memory_maps_async:
-	$(CC) $(CFLAGS) -o memory_maps_async.x memory_maps_async.cpp $(HPCTW_LIB)
+	$(CC) $(CFLAGS) -o memory_maps.x memory_maps.cpp $(HPCTW_LIBS)
+
 clean:
 	rm -rf *.o *~ *.x a.out data* scratch/* 
