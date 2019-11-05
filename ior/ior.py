@@ -56,7 +56,7 @@ def recMkdir(string):
         os.system("[ -e %s ] || mkdir %s" %(d, d))
         os.chdir(d)
     for d in directories:
-	os.chdir('../')
+        os.system("cd ../")
 if sdir[-1]=='/':
     sdir=sdir[:-1]
 recMkdir(sdir)
@@ -86,11 +86,14 @@ f.write("   RUN\n")
 f.write("IOR STOP\n")
 f.close()
 f = os.system('cat %s/%s.cfg'%(sdir, jobid))
+
 if socket.gethostname()=='zion':
     RUN="mpirun -n %s $HOME/opt/HPC-IOR/bin/ior" %(args.procPerNode*args.numNodes)
+    redirect=">& $dir/%s/%s.log; tail $dir/%s/%s.log" %(sdir, jobid, sdir, jobid)
 else:
     RUN="aprun -n %s -N %s -d %s -j 1 -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior"%(args.procPerNode*args.numNodes, args.procPerNode, 64//args.procPerNode)
-cmd = 'dir=$PWD; cd %s; %s -f $dir/%s/%s.cfg >& $dir/%s/%s.log; tail $dir/%s/%s.log; cd $PWD'%(sdir, RUN, sdir, jobid, sdir, jobid, sdir, jobid)
+    redirect="|& tee $dir/%s/%s.log" %(sdir, jobid)
+cmd = 'dir=$PWD; cd %s; %s -f $dir/%s/%s.cfg %s; cd $PWD'%(sdir, RUN, sdir, jobid, redirect)
 print(cmd)
 
 os.system(cmd)

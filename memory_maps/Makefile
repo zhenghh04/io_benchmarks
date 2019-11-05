@@ -1,13 +1,18 @@
 #Makefile
 #!/bin/sh
+
+CC=mpicc
 CFLAGS=-O3
-#CC=mpicc
-CC=g++
-HPCTW=$(HOME)/opt/hpctw
-HPCTW_LIB=-L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
-#HPCTW_LIB=-L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz
-#CC=CC
-#HPCTW=$(HOME)/soft/hpctw/cray
+#HPCTW_LIB=-L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
+ifeq ($(HOSTNAME), zion)
+	CC=g++
+	HPCTW=$(HOME)/opt/hpctw
+else
+	HPCTW=$(HOME)/soft/hpctw/cray
+endif
+HPCTW_LIB=-L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
+CC=CC
+
 
 all: memory_maps memory_maps_async
 memory_maps:
