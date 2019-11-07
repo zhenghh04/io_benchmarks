@@ -6,6 +6,7 @@
 #include <string>
 #include <stdio.h>
 #include <sys/time.h>
+#define MAXITER 10000
 using namespace std; 
 double get_time_diff_secs (struct timeval& start, struct timeval& end)
 {
@@ -16,6 +17,7 @@ struct Timer {
 public:
   string name; 
   double t; 
+  double t_iter[MAXITER]; 
   struct timeval start_t,  end_t; 
   int num_call; 
   bool open; 
@@ -50,7 +52,8 @@ class Timing {
     } else {
       if (T[ind].open) {
 	gettimeofday(&T[ind].end_t,0); 
-	T[ind].t += get_time_diff_secs(T[ind].start_t, T[ind].end_t);
+    T[ind].t_iter[T[ind].num_call-1] = get_time_diff_secs(T[ind].start_t, T[ind].end_t)
+	T[ind].t += T[ind].t_iter[T[ind].num_call-1];
 	T[ind].open = false; 
 	return; 
       } else {

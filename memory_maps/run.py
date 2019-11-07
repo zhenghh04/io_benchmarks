@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+# This benchmark is for running memory maps files
+# The benchmark is corresponding to memory_maps.x
+# The basic idea is to use SSD as a cache
+# ----- 
+# Huihuo Zheng
 import os
 import argparse
 import socket
