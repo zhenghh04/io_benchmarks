@@ -89,26 +89,16 @@ f.write("   RUN\n")
 f.write("IOR STOP\n")
 f.close()
 f = os.system('cat %s/%s.cfg'%(sdir, jobid))
-<<<<<<< HEAD
-
-if socket.gethostname()=='zion':
-    RUN="mpirun -n %s $HOME/opt/HPC-IOR/bin/ior" %(args.procPerNode*args.numNodes)
-    redirect=">& $dir/%s/%s.log; tail $dir/%s/%s.log" %(sdir, jobid, sdir, jobid)
-else:
-    RUN="aprun -n %s -N %s -d %s -j 1 -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior"%(args.procPerNode*args.numNodes, args.procPerNode, 64//args.procPerNode)
-    redirect="|& tee $dir/%s/%s.log" %(sdir, jobid)
-cmd = 'dir=$PWD; cd %s; %s -f $dir/%s/%s.cfg %s; cd $PWD'%(sdir, RUN, sdir, jobid, redirect)
-=======
 if args.fsync:
     extra = '-e'
 else:
     extra=""
+j = max(int(args.procPerNode/64), 1)
 if socket.gethostname()=='zion':
     RUN="mpirun -n %s $HOME/opt/HPC-IOR/bin/ior %s" %(args.procPerNode*args.numNodes, extra)
 else:
-    RUN="aprun -n %s -N %s -d %s -j 1 -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior %s"%(args.procPerNode*args.numNodes, args.procPerNode, 64//args.procPerNode, extra)
+    RUN="aprun -n %s -N %s -d %s -j %s -cc depth /home/hzheng/ExaHDF5/HPC-IOR-prof-hdf5/install/bin/ior %s"%(args.procPerNode*args.numNodes, args.procPerNode, 64*j//args.procPerNode, j, extra)
 cmd = 'dir=$PWD; cd %s; %s -f $dir/%s/%s.cfg >& $dir/%s/%s.log; tail $dir/%s/%s.log; cd $PWD'%(sdir, RUN, sdir, jobid, sdir, jobid, sdir, jobid)
->>>>>>> 9078e20fac168712755750d9d75a05742759c340
 print(cmd)
 
 os.system(cmd)

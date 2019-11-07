@@ -45,7 +45,7 @@ int fail(char *filename, int linenumber) {
 #define QUIT fail(__FILE__, __LINE__ )
 
 int main(int argc, char *argv[]) {
-  int i=1;
+  int i=0;
   int dim=1024*1024*2;
   int niter=1;
   char *ssd = "/local/scratch/";
@@ -53,29 +53,29 @@ int main(int argc, char *argv[]) {
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Status status;
-  int rank, nproc;
+  int rank, nproc, filePerProc;
   bool fsync=false; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-  while (i<argc) {
+  for(int i=1; i<argc; i++) {
     if (strcmp(argv[i], "--dim") == 0) {
       dim = atoi(argv[i+1]); 
-      i+=2;
+      i+=1;
     } else if (strcmp(argv[i], "--niter") == 0) {
       niter = atoi(argv[i+1]); 
-      i+=2;
+      i+=1;
     } else if (strcmp(argv[i], "--SSD") == 0) {
       ssd = argv[i+1];
-      i+=2;
+      i+=1;
     } else if (strcmp(argv[i], "--lustre") == 0) {
       lustre = argv[i+1];
-      i+=2;
+      i+=1;
     } else if (strcmp(argv[i], "--fsync")==0) {
       fsync = true; i++;
-    } else {
-      i++; 
+    } else if (strcmp(argv[i], "--filePerProc")==0){ 
+      filePerProc = int(atoi(argv[i+1]));
+      i+=1;
     }
   }
   long size = sizeof(int) * dim;
@@ -106,24 +106,51 @@ int main(int argc, char *argv[]) {
   for(int i=0; i<dim; i++) {
     myarray[i] = i; 
   }
-
+  MPI_Comm comm; 
+  if (filePerProc==1) 
+    comm = MPI_COMM_SELF; 
+  else
+    comm = MPI_COMM_WORLD; 
   char f1[100]; 
-  strcpy(f1, lustre);
-  strcat(f1, "/file-mem2lustre.dat"); 
   IOT M2L, M2S, M2MMF, MMF2L; 
-  for(int i=0; i<niter; i++) {
-    tt.start_clock("m2l_open");
-    MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
-    tt.stop_clock("m2l_open");
-    tt.start_clock("m2l_write"); 
-    MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
-    tt.stop_clock("m2l_write"); 
-    tt.start_clock("m2l_sync"); 
-    if (fsync) MPI_File_sync(handle);
-    tt.stop_clock("m2l_sync"); 
-    tt.start_clock("m2l_close"); 
-    MPI_File_close(&handle);
-    tt.stop_clock("m2l_close"); 
+  if (filePerProc==1) {
+    strcpy(f1, lustre);
+    strcat(f1, "/file-mem2lustre.dat"); 
+    strcat(f1, itoa(rank).c_str()); 
+    for(int i=0; i<niter; i++) {
+      tt.start_clock("m2l_open");
+      MPI_File_open(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2l_open");
+      tt.start_clock("m2l_write"); 
+      MPI_File_write(handle, myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2l_write"); 
+      tt.start_clock("m2l_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2l_sync"); 
+      tt.start_clock("m2l_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("m2l_close"); 
+    }
+  } else {
+    strcpy(f1, lustre);
+    strcat(f1, "/file-mem2lustre.dat"); 
+    for(int i=0; i<niter; i++) {
+      tt.start_clock("m2l_open");
+      MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2l_open");
+
+      tt.start_clock("m2l_write"); 
+      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2l_write"); 
+
+      tt.start_clock("m2l_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2l_sync"); 
+
+      tt.start_clock("m2l_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("m2l_close"); 
+    }
   }
   M2L.open = tt["m2l_open"].t;
   M2L.raw = tt["m2l_write"].t  +tt["m2l_write"].t;
@@ -142,19 +169,44 @@ int main(int argc, char *argv[]) {
   char fn[100]; 
   strcpy(fn, ssd);
   strcat(fn, "/file-mem2ssd.dat"); 
-  for(int i=0; i<niter; i++) {
-    tt.start_clock("m2s_open"); 
-    MPI_File_open(MPI_COMM_WORLD, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
-    tt.stop_clock("m2s_open");
-    tt.start_clock("m2s_write"); 
-    MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
-    tt.stop_clock("m2s_write");
-    tt.start_clock("m2s_sync"); 
-    if (fsync) MPI_File_sync(handle);
-    tt.stop_clock("m2s_sync"); 
-    tt.start_clock("m2s_close"); 
-    MPI_File_close(&handle);
-    tt.stop_clock("m2s_close"); 
+  int *myarrayssd = new int [dim];
+  for(int i=0; i<dim; i++) {
+    myarrayssd[i] = i; 
+  }
+
+  if (filePerProc==1) {
+    strcat(fn, itoa(rank).c_str()); 
+    for(int i=0; i<niter; i++) {
+      tt.start_clock("m2s_open"); 
+      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s_open");
+      tt.start_clock("m2s_write"); 
+      MPI_File_write(handle, myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s_write");
+      tt.start_clock("m2s_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_sync"); 
+      tt.start_clock("m2s_close"); 
+      MPI_File_close(&handle);
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_close"); 
+    }
+  } else {
+    for(int i=0; i<niter; i++) {
+      tt.start_clock("m2s_open"); 
+      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s_open");
+      tt.start_clock("m2s_write"); 
+      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s_write");
+      tt.start_clock("m2s_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_sync"); 
+      tt.start_clock("m2s_close"); 
+      MPI_File_close(&handle);
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_close"); 
+    }
   }
   M2S.open = tt["m2s_open"].t;
   M2S.raw = tt["m2s_write"].t + tt["m2s_sync"].t; 
@@ -215,26 +267,52 @@ int main(int argc, char *argv[]) {
   strcat(f2, "/file-mmf2lustre.dat");
   int *array2 = (int*) addr;
   MPI_Request request; 
-  for (int i=0; i<niter; i++) {
-    tt.start_clock("mmf2l_open"); 
-    MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
-    tt.stop_clock("mmf2l_open");
+  if (filePerProc==1) {
+    strcat(f2, itoa(rank).c_str()); 
+    for (int i=0; i<niter; i++) {
+      tt.start_clock("mmf2l_open"); 
+      MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+      tt.stop_clock("mmf2l_open");
+      
+      tt.start_clock("mmf2l_iwrite"); 
+      MPI_File_iwrite(handle,array2, dim, MPI_INT, &request);
+      tt.stop_clock("mmf2l_iwrite");
+      
+      tt.start_clock("mmf2l_Wait"); 
+      MPI_Waitall(1, &request, &status);
+      tt.stop_clock("mmf2l_Wait");
+      
+      tt.start_clock("mmf2l_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("mmf2l_sync"); 
+      
+      tt.start_clock("mmf2l_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("mmf2l_close"); 
+    }
+    
+  } else {
+    for (int i=0; i<niter; i++) {
+      tt.start_clock("mmf2l_open"); 
+      MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+      tt.stop_clock("mmf2l_open");
 
-    tt.start_clock("mmf2l_iwrite"); 
-    MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
-    tt.stop_clock("mmf2l_iwrite");
+      tt.start_clock("mmf2l_iwrite"); 
+      MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
+      tt.stop_clock("mmf2l_iwrite");
 
-    tt.start_clock("mmf2l_Wait"); 
-    MPI_Waitall(1, &request, &status);
-    tt.stop_clock("mmf2l_Wait");
+      tt.start_clock("mmf2l_Wait"); 
+      MPI_Waitall(1, &request, &status);
+      tt.stop_clock("mmf2l_Wait");
 
-    tt.start_clock("mmf2l_sync"); 
-    if (fsync) MPI_File_sync(handle);
-    tt.stop_clock("mmf2l_sync"); 
+      tt.start_clock("mmf2l_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("mmf2l_sync"); 
 
-    tt.start_clock("mmf2l_close"); 
-    MPI_File_close(&handle);
-    tt.stop_clock("mmf2l_close"); 
+      tt.start_clock("mmf2l_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("mmf2l_close"); 
+    }
   }
   MMF2L.open = tt["mmf2l_open"].t;
   MMF2L.raw = (tt["mmf2l_iwrite"].t + tt["mmf2l_Wait"].t + tt["mmf2l_sync"].t);

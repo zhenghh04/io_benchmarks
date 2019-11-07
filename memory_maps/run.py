@@ -17,6 +17,7 @@ parser.add_argument("--lustre", default="./scratch/")
 parser.add_argument("--niter", default=1, type=int)
 parser.add_argument("--lustreStripeSize", default='8m')
 parser.add_argument("--lustreStripeCount", default=48, type=int)
+parser.add_argument("--filePerProc", type=int, default=0)
 parser.add_argument("--fsync", action='store_true')
 args = parser.parse_args()
 options = vars(args)
@@ -26,8 +27,12 @@ if ll[0]=='.':
     lustre=ll[1]
 else:
     lustre=ll[0]
-
-extra_opts=""
+try:
+    os.mkdir(lustre)
+    os.mkdir(args.SSD)
+except:
+    print("already exist")
+extra_opts=" --filePerProc %s" %args.filePerProc
 if args.fsync:
     extra_opts = "--fsync"
 if hostname.find("theta")!=-1:

@@ -3,9 +3,9 @@
 CC=mpicc
 CXX=mpicxx
 CFLAGS=-O3 -DDEBUG
-HPCTW=$(HOME)/opt/hpctw
-LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  -Wl,-rpath,$(HOME)/opt/hpctw -L$(HOME)/opt/hpctw -lhpmprof_c -liberty -lbfd -lz
-#LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5 -L/home/morozov/lib -lhpmprof_c -lbfd -liberty -lz
+HPCTW=$(HOME)/soft/hpctw/intel
+LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  -Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
+
 
 parallel_hdf5:
 	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp $(LIBS)
