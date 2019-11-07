@@ -11,7 +11,7 @@ if hostname.find("theta")!=-1:
     parser.add_argument("--num_nodes", default=int(os.environ['COBALT_JOBSIZE']), type=int)
     parser.add_argument("--ppn", default=16, type=int)
 else:
-    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps"
+    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps/"
     parser.add_argument("--num_nodes", default=1, type=int)
     parser.add_argument("--SSD", default="SSD")
     parser.add_argument("--ppn", default=2, type=int)
@@ -41,7 +41,7 @@ if hostname.find("theta")!=-1:
     os.system("lfs getstripe %s"%args.lustre)
     os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
-    os.system("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
+    os.system("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
 def read_to_str(fin, string):
     '''                                                                                                                                           Read file until reaching at the specified string                                                                                              fin can be the file name or file stream                                                                                                       '''
     f = 0
