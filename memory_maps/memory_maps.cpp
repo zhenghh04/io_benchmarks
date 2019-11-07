@@ -37,6 +37,14 @@ string itoa ( T Number)
   ss << Number;
   return ss.str(); 
 }
+inline void reduction_avg(double *t, int niter, double &w, double &std) {
+  stat(t, niter, w, std, 'i');
+  double w0 = w; 
+  double std0 = std*std;
+  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  MPI_Allreduce(&std0, &std, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  std = sqrt(std); 
+}
 
 int fail(char *filename, int linenumber) { 
   fprintf(stderr, "%s:%d %s\n", filename, linenumber, strerror(errno)); 
@@ -90,11 +98,12 @@ int main(int argc, char *argv[]) {
   MPI_Comm local_comm; 
   MPI_Comm_split_type(MPI_COMM_WORLD, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL,
 			&local_comm);
-
+  
   // Get local rank and world rank for cross comm establishment.
-  int local_rank, ppn; 
+  int local_rank, ppn, num_nodes; 
   MPI_Comm_rank(local_comm, &local_rank);
   MPI_Comm_size(local_comm, &ppn);
+  num_nodes = nproc/ppn; 
   MPI_Barrier(MPI_COMM_WORLD);
   if (rank==0)  {
     printf("----------- SSD Staging test---------------\n"); 
@@ -132,7 +141,9 @@ int main(int argc, char *argv[]) {
 // testing SSD write performance using multiple ranks posix. For this test, we will always using file per rank
   double write_rate[niter]; 
   double w = 0.0; 
-  double std = 0.0; 
+  double std = 0.0;
+  double w0 = 0.0;
+  double std0 = 0.0; 
   for(int i=0; i<niter; i++) {
     MPI_Barrier(MPI_COMM_WORLD); 
     char fn[100]; 
@@ -144,14 +155,14 @@ int main(int argc, char *argv[]) {
     int fd = open(fn, O_WRONLY | O_CREAT); // write only for 
     tt.stop_clock("w_open");
     double t0 = MPI_Wtime();
-    tt.start_clock("w_rate")
+    tt.start_clock("w_rate");
     tt.start_clock("w_write"); 
     write(fd, (char *)myarray, size); 
     tt.stop_clock("w_write");
     tt.start_clock("w_sync"); 
     if (fsync) ::fsync(fd); 
     tt.stop_clock("w_sync");
-    tt.stop_clock("w_rate")
+    tt.stop_clock("w_rate");
     double t1 = MPI_Wtime(); 
     tt.start_clock("w_close"); 
     close(fd);
@@ -163,25 +174,26 @@ int main(int argc, char *argv[]) {
   stat(tt["w_rate"].t_iter, niter, w, std, 'i');
   w = w/1024/1024*size;
   std = std/1024/1024*size;
-  double wt[int(nproc/ppn)];
-  double wtt[int(nproc/ppn)];
-  for(int i=0; i<nproc/ppn; i++) wt[i]=0;
+  // we do this only because we would like to find out the performance of each SSD ranks; 
+  double wt[num_nodes];
+  double wtt[num_nodes];
+  for(int i=0; i<num_nodes; i++) wt[i]=0;
   MPI_Allreduce(&w, &wt[rank/ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
-  MPI_Allreduce(&wt, &wtt, nproc/ppn, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  for(int i=0; i<nproc/ppn; i++) wtt[i]=wtt[i]/ppn;
+  MPI_Allreduce(&wt, &wtt, num_nodes, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for(int i=0; i<num_nodes; i++) wtt[i]=wtt[i]/ppn;
 
   double st[int(nproc/ppn)];
   double stt[int(nproc/ppn)];
   for(int i=0; i<nproc/ppn; i++) wt[i]=0;
   std = std*std; 
   MPI_Allreduce(&std, &st[rank/ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
-  MPI_Allreduce(&st, &stt, nproc/ppn, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  for(int i=0; i<nproc/ppn; i++) stt[i] = sqrt(stt[i]/ppn);
+  MPI_Allreduce(&st, &stt, num_nodes, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for(int i=0; i<num_nodes; i++) stt[i] = sqrt(stt[i]/ppn);
 
   if (rank==0) {
     cout << "SSD NODE PROP.: "; 
     for(int i=0; i<nproc/ppn; i++) {
-      cout << wtt[i] << " +/- " << stt[i] << " ";
+      cout << wtt[i] << " +/- " << stt[i] << ", ";
     }
     cout << endl; 
   }
@@ -190,14 +202,16 @@ int main(int argc, char *argv[]) {
   W.raw = tt["w_write"].t + tt["w_sync"].t; 
   W.close = tt["w_close"].t;
   W.rep = tt["w_open"].num_call; 
-  double w0 = size/W.raw/1024/1024*W.rep; 
-  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+
+  reduction_avg(tt["w_rate"].t_iter, niter, w, std);
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
   if (rank==0) {
     cout << "\n----------------  SSD I/O WRITE  ---------------" << endl; 
     cout << "     Open time (s): " << W.open/W.rep << endl;
     cout << "    Write time (s): " << W.raw/W.rep << endl;
     cout << "    Close time (s): " << W.close/W.rep << endl;
-    cout << "Write rate (MiB/s): " << w << endl; 
+    cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
   
@@ -210,14 +224,14 @@ int main(int argc, char *argv[]) {
       tt.start_clock("m2l_open");
       MPI_File_open(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2l_open");
+      tt.start_clock("m2l_rate");
       tt.start_clock("m2l_write"); 
       MPI_File_write(handle, myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
       tt.stop_clock("m2l_write"); 
-
       tt.start_clock("m2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("m2l_sync"); 
-
+      tt.stop_clock("m2l_rate");
       tt.start_clock("m2l_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("m2l_close"); 
@@ -228,9 +242,9 @@ int main(int argc, char *argv[]) {
       strcpy(f1, lustre);
       strcat(f1, "/file-mem2lustre.dat"); 
       tt.start_clock("m2l_open");
-      MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      MPI_File_open(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2l_open");
-
+      tt.start_clock("m2l_rate");
       tt.start_clock("m2l_write"); 
       MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
       tt.stop_clock("m2l_write"); 
@@ -238,7 +252,8 @@ int main(int argc, char *argv[]) {
       tt.start_clock("m2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("m2l_sync"); 
-
+      tt.stop_clock("m2l_rate");
+      
       tt.start_clock("m2l_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("m2l_close"); 
@@ -247,15 +262,19 @@ int main(int argc, char *argv[]) {
   M2L.open = tt["m2l_open"].t;
   M2L.raw = tt["m2l_write"].t  +tt["m2l_sync"].t;
   M2L.close = tt["m2l_close"].t;
-  M2L.rep = tt["m2l_open"].num_call; 
-  w0 = size/M2L.raw/1024/1024*M2L.rep; 
-  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  M2L.rep = tt["m2l_open"].num_call;
+
+  
+  reduction_avg(tt["m2l_rate"].t_iter, niter, w, std);
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
+
   if (rank==0) {
     cout << "\n--------------- Memory to Lustre (direct) -----" << endl; 
     cout << "     Open time (s): " << M2L.open/M2L.rep << endl; 
     cout << "    Write time (s): " << M2L.raw/M2L.rep << endl;
     cout << "    Close time (s): " << M2L.close/M2L.rep << endl;
-    cout << "Write rate (MiB/s): " << w << endl; 
+    cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
 
@@ -280,24 +299,26 @@ int main(int argc, char *argv[]) {
     if (addr == (void*) -1 ) QUIT;
     int *array = (int*) addr;
     tt.start_clock("m2mmf_write");
+    tt.start_clock("m2mmf_rate");
     for(int i=0; i<dim; i++)
       array[i] = i+j;
     tt.stop_clock("m2mmf_write");
     tt.start_clock("m2mmf_sync"); 
     msync(addr, size, MS_SYNC);
     if (fsync) ::fsync(fd);
-    tt.stop_clock("m2mmf_sync"); 
+    tt.stop_clock("m2mmf_sync");
+    tt.stop_clock("m2mmf_rate");
     close(fd); 
     munmap(addr, size);
   }
   M2MMF.raw = tt["m2mmf_write"].t + tt["m2mmf_sync"].t;
-  w0 = size/M2MMF.raw/1024/1024*niter; 
-  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-
+  reduction_avg(tt["m2mmf_rate"].t_iter, niter, w, std);
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
   if (rank==0) {
     cout << "\n--------------- Memory to mmap file -------" << endl; 
     cout << "    Write time (s): " << M2MMF.raw/niter << endl; 
-    cout << "Write rate (MiB/s): " << w << endl; 
+    cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "------------------------------------------------" << endl;
   }
 #ifdef DEBUG
@@ -325,6 +346,7 @@ int main(int argc, char *argv[]) {
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("mmf2l_open");
+      tt.start_clock("mmf2l_rate");
       if (async) {
 	tt.start_clock("mmf2l_iwrite"); 
 	MPI_File_iwrite(handle,array2, dim, MPI_INT, &request);
@@ -343,7 +365,7 @@ int main(int argc, char *argv[]) {
       tt.start_clock("mmf2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("mmf2l_sync"); 
-      
+      tt.stop_clock("mmf2l_rate");
       tt.start_clock("mmf2l_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("mmf2l_close");
@@ -367,6 +389,7 @@ int main(int argc, char *argv[]) {
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("mmf2l_open");
+      tt.start_clock("mmf2l_rate");
       if (async) {
 	tt.start_clock("mmf2l_iwrite"); 
 	MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
@@ -385,7 +408,7 @@ int main(int argc, char *argv[]) {
       tt.start_clock("mmf2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("mmf2l_sync"); 
-
+      tt.stop_clock("mmf2l_rate");
       tt.start_clock("mmf2l_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("mmf2l_close");
@@ -395,7 +418,11 @@ int main(int argc, char *argv[]) {
   MMF2L.open = tt["mmf2l_open"].t;
   MMF2L.raw = (tt["mmf2l_iwrite"].t + tt["mmf2l_Wait"].t + tt["mmf2l_sync"].t);
   MMF2L.close = tt["mmf2l_close"].t;
-  MMF2L.rep = niter; 
+  MMF2L.rep = niter;
+  reduction_avg(tt["mmf2l_rate"].t_iter, niter, w, std);
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
+
   w0 = size/MMF2L.raw/1024/1024*niter; 
   MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   
@@ -404,12 +431,14 @@ int main(int argc, char *argv[]) {
     cout << "     Open time (s): " << MMF2L.open/MMF2L.rep << endl; 
     cout << "    Write time (s): " << MMF2L.raw/MMF2L.rep << endl; 
     cout << "    Close time (s): " << MMF2L.close/MMF2L.rep << endl; 
-    cout << "Write rate (MiB/s): " << w << endl; 
+    cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "---------------------------------------------" << endl;
   }
   delete [] myarray;
-  delete [] myarrayssd; 
+  delete [] myarrayssd;
+#ifdef DEBUG
   tt.PrintTiming(rank==0);
+#endif
   MPI_Finalize();
   return 0;
 }

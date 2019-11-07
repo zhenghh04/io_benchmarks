@@ -1,9 +1,9 @@
 #ifndef STAT_H_
 #define STAT_H_
-#include <stdio>
+#include <stdio.h>
 #include <cmath>
 template <typename T>
-void stat ( T *array, int n, T &avg, T &std, type='n')
+void stat ( T *array, int n, T &avg, T &std, char type='n')
 {
   T x, xx;
   x=0;
@@ -16,12 +16,11 @@ void stat ( T *array, int n, T &avg, T &std, type='n')
   } else {
       for(int i=0; i<n; i++) {
         x += 1.0/array[i];
-        xx += 1.0/array[i]*array[i];
+        xx += 1.0/array[i]/array[i];
       }
   }
   avg = x/n;
   std = sqrt(xx/n - avg*avg);
-  return 0;
 }
 
 #endif

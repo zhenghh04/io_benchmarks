@@ -74,10 +74,10 @@ import datetime
 fin = open(root+args.directory+"/"+args.output, 'r')
 run = {}
 run['input'] = vars(args)
-run['SSD'] = [ float(d) for d in read_to_str(fin, "SSD NODE").split(":")[1].split()]
-run['mem->ssd'] = float(read_to_str(fin, "Write rate").split()[-1])
-run['mem->lustre'] = float(read_to_str(fin, "Write rate").split()[-1])
-run['mem->mmap'] = float(read_to_str(fin, "Write rate").split()[-1])
-run['mmap->lustre'] = float(read_to_str(fin, "Write rate").split()[-1])
+run['SSD'] = [ [float(d.split()[0]), float(d.split()[2])] for d in read_to_str(fin, "SSD NODE").split(":")[1].split(',')[:-1]]
+run['mem->ssd'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
+run['mem->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
+run['mem->mmap'] =  [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
+run['mmap->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 with open(root+args.directory+"/" + args.output.split('.')[0]+'.json', 'w') as f:
     json.dump(run, f)

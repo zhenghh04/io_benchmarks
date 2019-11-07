@@ -52,7 +52,7 @@ class Timing {
     } else {
       if (T[ind].open) {
 	gettimeofday(&T[ind].end_t,0); 
-    T[ind].t_iter[T[ind].num_call-1] = get_time_diff_secs(T[ind].start_t, T[ind].end_t)
+	T[ind].t_iter[T[ind].num_call-1] = get_time_diff_secs(T[ind].start_t, T[ind].end_t);
 	T[ind].t += T[ind].t_iter[T[ind].num_call-1];
 	T[ind].open = false; 
 	return; 
