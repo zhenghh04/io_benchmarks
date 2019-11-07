@@ -147,7 +147,6 @@ int main(int argc, char *argv[]) {
       char fn[100]; 
       strcpy(fn, ssd);
       strcat(fn, "/file-mem2ssd.dat"); 
-      strcat(fn, itoa(rank).c_str());
       strcat(fn, "-iter"); 
       strcat(fn, itoa(i).c_str()); 
       strcat(fn, itoa(i).c_str()); 
@@ -169,6 +168,7 @@ int main(int argc, char *argv[]) {
       tt.stop_clock("m2s_close"); 
     }
   }
+
   M2S.open = tt["m2s_open"].t;
   M2S.raw = tt["m2s_write"].t + tt["m2s_sync"].t; 
   M2S.close = tt["m2s_close"].t;
@@ -183,7 +183,6 @@ int main(int argc, char *argv[]) {
     cout << "-----------------------------------------------" << endl; 
   }
 
-  
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 
@@ -210,7 +209,6 @@ int main(int argc, char *argv[]) {
       char f1[100]; 
       strcpy(f1, lustre);
       strcat(f1, "/file-mem2lustre.dat"); 
-      strcat(f1, itoa(rank).c_str()); 
       tt.start_clock("m2l_open");
       MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2l_open");
@@ -254,7 +252,6 @@ int main(int argc, char *argv[]) {
     strcat(f, "/file-"); 
     strcat(f, itoa(local_rank).c_str()); 
     strcat(f, ".dat-iter"); 
-    
     strcat(f, itoa(j).c_str());
     int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
     lseek(fd, size, SEEK_SET);
@@ -266,7 +263,6 @@ int main(int argc, char *argv[]) {
     for(int i=0; i<dim; i++)
       array[i] = i+j;
     tt.stop_clock("m2mmf_write");
-    
     tt.start_clock("m2mmf_sync"); 
     msync(addr, size, MS_SYNC);
     if (fsync) ::fsync(fd);
@@ -330,7 +326,6 @@ int main(int argc, char *argv[]) {
       char f2[100]; 
       strcpy(f2, lustre); 
       strcat(f2, "/file-mmf2lustre.dat");
-      strcat(f2, itoa(rank).c_str()); 
 
       char f[100]; 
       strcpy(f, ssd); 
@@ -375,7 +370,8 @@ int main(int argc, char *argv[]) {
     cout << "Write rate: " << size/(MMF2L.raw)/1024/1024*MMF2L.rep*nproc << " MB/sec" << endl;
     cout << "---------------------------------------------" << endl;
   }
-
+  delete [] myarray;
+  delete [] myarrayssd; 
   tt.PrintTiming(rank==0);
   MPI_Finalize();
   return 0;
