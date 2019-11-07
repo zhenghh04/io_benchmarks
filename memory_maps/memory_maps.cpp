@@ -285,7 +285,7 @@ int main(int argc, char *argv[]) {
   if (rank==0) {
     cout << "\n--------------- Memory to mmap file -------" << endl; 
     cout << "    Write time (s): " << M2MMF.raw/niter << endl; 
-    cout << "Write Rate (MiB/s): " << w << endl; 
+    cout << "Write rate (MiB/s): " << w << endl; 
     cout << "------------------------------------------------" << endl;
   }
 #ifdef DEBUG

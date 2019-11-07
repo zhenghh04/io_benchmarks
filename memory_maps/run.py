@@ -39,7 +39,7 @@ extra_opts=" --filePerProc %s --fsync %s --async %s" %(args.filePerProc, args.fs
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
     os.system("lfs getstripe %s"%args.lustre)
-    os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
+    os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
     os.system("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
 def read_to_str(fin, string):
@@ -59,15 +59,15 @@ def read_to_str(fin, string):
         except:
             break
     return line
-os.chdir(args.directory)
-fin = open(args.output, 'w')
+import json
+import datetime
+fin = open(root+args.directory+"/"+args.output, 'r')
 run = {}
 run['input'] = vars(args)
-run['SSD'] = [ float(d) for d in read_to_str(fin, "SSD NODE").split(":").split()]
-run['mem->ssd'] = float(read_to_str(fin, "Write rate:").split()[2])
-run['mem->lustre'] = float(read_to_str(fin, "Write rate:").split()[2])
-run['mem->mmap'] = float(read_to_str(fin, "Write rate:").split()[2])
-run['mmap->lustre'] = float(read_to_str(fin, "Write rate:").split()[2])
-
-with open(args.output.split('.')[0]+'json', 'w') as f:
+run['SSD'] = [ float(d) for d in read_to_str(fin, "SSD NODE").split(":")[1].split()]
+run['mem->ssd'] = float(read_to_str(fin, "Write rate").split()[-1])
+run['mem->lustre'] = float(read_to_str(fin, "Write rate").split()[-1])
+run['mem->mmap'] = float(read_to_str(fin, "Write rate").split()[-1])
+run['mmap->lustre'] = float(read_to_str(fin, "Write rate").split()[-1])
+with open(root+args.directory+"/" + args.output.split('.')[0]+'.json', 'w') as f:
     json.dump(run, f)
