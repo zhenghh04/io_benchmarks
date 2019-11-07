@@ -55,6 +55,7 @@ int main(int argc, char *argv[]) {
   MPI_Status status;
   int rank, nproc, filePerProc;
   bool fsync=false; 
+  bool async=false; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -73,6 +74,8 @@ int main(int argc, char *argv[]) {
       i+=1;
     } else if (strcmp(argv[i], "--fsync")==0) {
       fsync = true;
+    } else if (strcmp(argv[i], "--async")==0) {
+      async = true;
     } else if (strcmp(argv[i], "--filePerProc")==0){ 
       filePerProc = int(atoi(argv[i+1]));
       i+=1;
@@ -301,17 +304,23 @@ int main(int argc, char *argv[]) {
       void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
       int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
-      MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+      MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("mmf2l_open");
-      
-      tt.start_clock("mmf2l_iwrite"); 
-      MPI_File_iwrite(handle,array2, dim, MPI_INT, &request);
-      tt.stop_clock("mmf2l_iwrite");
-      
-      tt.start_clock("mmf2l_Wait"); 
-      MPI_Waitall(1, &request, &status);
-      tt.stop_clock("mmf2l_Wait");
-      
+      if (async) {
+	tt.start_clock("mmf2l_iwrite"); 
+	MPI_File_iwrite(handle,array2, dim, MPI_INT, &request);
+	tt.stop_clock("mmf2l_iwrite");
+	
+	tt.start_clock("mmf2l_Wait"); 
+	MPI_Waitall(1, &request, &status);
+	tt.stop_clock("mmf2l_Wait");
+      } else {
+	tt.start_clock("mmf2l_iwrite"); 
+	MPI_File_write(handle, array2, dim, MPI_INT, MPI_STATUS_IGNORE);
+	tt.stop_clock("mmf2l_iwrite");
+	tt.start_clock("mmf2l_Wait"); 
+	tt.stop_clock("mmf2l_Wait");
+      }
       tt.start_clock("mmf2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("mmf2l_sync"); 
@@ -337,17 +346,23 @@ int main(int argc, char *argv[]) {
       void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
       int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
-      MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
+      MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("mmf2l_open");
+      if (async) {
+	tt.start_clock("mmf2l_iwrite"); 
+	MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
+	tt.stop_clock("mmf2l_iwrite");
 
-      tt.start_clock("mmf2l_iwrite"); 
-      MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
-      tt.stop_clock("mmf2l_iwrite");
-
-      tt.start_clock("mmf2l_Wait"); 
-      MPI_Waitall(1, &request, &status);
-      tt.stop_clock("mmf2l_Wait");
-
+	tt.start_clock("mmf2l_Wait"); 
+	MPI_Waitall(1, &request, &status);
+	tt.stop_clock("mmf2l_Wait");
+      } else {
+	tt.start_clock("mmf2l_iwrite"); 
+	MPI_File_write_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT,  MPI_STATUS_IGNORE);
+	tt.stop_clock("mmf2l_iwrite");
+	tt.start_clock("mmf2l_Wait"); 
+	tt.stop_clock("mmf2l_Wait");
+      }
       tt.start_clock("mmf2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("mmf2l_sync"); 

@@ -24,4 +24,4 @@ test_ssd_posix:
 	$(CC) $(CFLAGS) -o test_ssd_posix.x test_ssd_posix.cpp $(LIBS)
 
 clean:
-	rm -rf *.o *~ *.x a.out data* scratch/* 
+	rm -rf *.o *~ *.x a.out data* scratch/* mpi_profile.* hpm*

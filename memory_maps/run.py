@@ -19,6 +19,7 @@ parser.add_argument("--lustreStripeSize", default='8m')
 parser.add_argument("--lustreStripeCount", default=48, type=int)
 parser.add_argument("--filePerProc", type=int, default=0)
 parser.add_argument("--fsync", action='store_true')
+parser.add_argument("--async", action='store_true')
 args = parser.parse_args()
 options = vars(args)
 print(options)
@@ -35,6 +36,8 @@ except:
 extra_opts=" --filePerProc %s" %args.filePerProc
 if args.fsync:
     extra_opts = "--fsync"
+if args.async:
+    extra_opts += " --async"
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, lustre))
     os.system("lfs getstripe %s"%lustre)
