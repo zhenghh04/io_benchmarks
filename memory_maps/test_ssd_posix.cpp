@@ -124,6 +124,7 @@ int main(int argc, char *argv[]) {
     double w2 = 0.0; 
     double w = 0.0; 
     for(int i=0; i<niter; i++) {
+      MPI_Barrier(MPI_COMM_WORLD); 
       strcat(fn, itoa(i).c_str()); 
       tt.start_clock("w_open"); 
       fd = open(fn, O_WRONLY | O_CREAT); 

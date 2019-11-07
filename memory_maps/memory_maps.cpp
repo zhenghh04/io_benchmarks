@@ -72,7 +72,7 @@ int main(int argc, char *argv[]) {
       lustre = argv[i+1];
       i+=1;
     } else if (strcmp(argv[i], "--fsync")==0) {
-      fsync = true; i++;
+      fsync = true;
     } else if (strcmp(argv[i], "--filePerProc")==0){ 
       filePerProc = int(atoi(argv[i+1]));
       i+=1;
@@ -112,7 +112,76 @@ int main(int argc, char *argv[]) {
   else
     comm = MPI_COMM_WORLD; 
   char f1[100]; 
-  IOT M2L, M2S, M2MMF, MMF2L; 
+  IOT M2L, M2S, M2MMF, MMF2L;
+
+
+  MPI_Barrier(MPI_COMM_WORLD);
+  char fn[100]; 
+  strcpy(fn, ssd);
+  strcat(fn, "/file-mem2ssd.dat"); 
+  int *myarrayssd = new int [dim];
+  for(int i=0; i<dim; i++) {
+    myarrayssd[i] = i; 
+  }
+  if (filePerProc==1) {
+    strcat(fn, itoa(rank).c_str());
+    strcat(fn, "-iter"); 
+    for(int i=0; i<niter; i++) {
+      strcat(fn, itoa(i).c_str()); 
+      tt.start_clock("m2s_open"); 
+      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s_open");
+
+      tt.start_clock("m2s_write"); 
+      MPI_File_write(handle, myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s_write");
+
+      tt.start_clock("m2s_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_sync"); 
+
+      tt.start_clock("m2s_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("m2s_close"); 
+    }
+  } else {
+    strcat(fn, "-iter"); 
+    for(int i=0; i<niter; i++) {
+      strcat(fn, itoa(i).c_str()); 
+      tt.start_clock("m2s_open"); 
+      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s_open");
+
+      tt.start_clock("m2s_write"); 
+      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s_write");
+
+      //if (fsync) MPI_File_sync(handle);
+      tt.start_clock("m2s_sync"); 
+      if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s_sync"); 
+
+      tt.start_clock("m2s_close"); 
+      MPI_File_close(&handle);
+      tt.stop_clock("m2s_close"); 
+      
+    }
+  }
+  M2S.open = tt["m2s_open"].t;
+  M2S.raw = tt["m2s_write"].t + tt["m2s_sync"].t; 
+  M2S.close = tt["m2s_close"].t;
+  M2S.rep = tt["m2s_open"].num_call; 
+
+  if (rank==0) {
+    cout << "\n--------------- Memory to SSD (direct) -----" << endl; 
+    cout << "Open time (s): " << M2S.open/M2S.rep << endl;
+    cout << "Write time (s): " << M2S.raw/M2S.rep << endl;
+    cout << "Close time (s): " << M2S.close/M2S.rep << endl;
+    cout << "Write rate: " << size/M2S.raw/1024/1024*M2S.rep*nproc << " MB/sec" << endl;
+    cout << "-----------------------------------------------" << endl; 
+  }
+
+  
   if (filePerProc==1) {
     strcpy(f1, lustre);
     strcat(f1, "/file-mem2lustre.dat"); 
@@ -124,9 +193,11 @@ int main(int argc, char *argv[]) {
       tt.start_clock("m2l_write"); 
       MPI_File_write(handle, myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
       tt.stop_clock("m2l_write"); 
+
       tt.start_clock("m2l_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("m2l_sync"); 
+
       tt.start_clock("m2l_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("m2l_close"); 
@@ -153,7 +224,7 @@ int main(int argc, char *argv[]) {
     }
   }
   M2L.open = tt["m2l_open"].t;
-  M2L.raw = tt["m2l_write"].t  +tt["m2l_write"].t;
+  M2L.raw = tt["m2l_write"].t  +tt["m2l_sync"].t;
   M2L.close = tt["m2l_close"].t;
   M2L.rep = tt["m2l_open"].num_call; 
   if (rank==0) {
@@ -165,74 +236,21 @@ int main(int argc, char *argv[]) {
     cout << "-----------------------------------------------" << endl; 
   }
 
-
-  char fn[100]; 
-  strcpy(fn, ssd);
-  strcat(fn, "/file-mem2ssd.dat"); 
-  int *myarrayssd = new int [dim];
-  for(int i=0; i<dim; i++) {
-    myarrayssd[i] = i; 
-  }
-
-  if (filePerProc==1) {
-    strcat(fn, itoa(rank).c_str()); 
-    for(int i=0; i<niter; i++) {
-      tt.start_clock("m2s_open"); 
-      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
-      tt.stop_clock("m2s_open");
-      tt.start_clock("m2s_write"); 
-      MPI_File_write(handle, myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
-      tt.stop_clock("m2s_write");
-      tt.start_clock("m2s_sync"); 
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_sync"); 
-      tt.start_clock("m2s_close"); 
-      MPI_File_close(&handle);
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_close"); 
-    }
-  } else {
-    for(int i=0; i<niter; i++) {
-      tt.start_clock("m2s_open"); 
-      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
-      tt.stop_clock("m2s_open");
-      tt.start_clock("m2s_write"); 
-      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
-      tt.stop_clock("m2s_write");
-      tt.start_clock("m2s_sync"); 
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_sync"); 
-      tt.start_clock("m2s_close"); 
-      MPI_File_close(&handle);
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_close"); 
-    }
-  }
-  M2S.open = tt["m2s_open"].t;
-  M2S.raw = tt["m2s_write"].t + tt["m2s_sync"].t; 
-  M2S.close = tt["m2s_close"].t;
-  M2S.rep = tt["m2s_open"].num_call; 
-
-  if (rank==0) {
-    cout << "\n--------------- Memory to SSD (direct) -----" << endl; 
-    cout << "Open time (s): " << M2S.open/M2S.rep << endl;
-    cout << "Write time (s): " << M2S.raw/M2S.rep << endl;
-    cout << "Close time (s): " << M2S.close/M2S.rep << endl;
-    cout << "Write rate: " << size/M2S.raw/1024/1024*M2S.rep*nproc << " MB/sec" << endl;
-    cout << "-----------------------------------------------" << endl; 
-  }
   //staging time
+  MPI_Barrier(MPI_COMM_WORLD);
   char *name; 
   int *resultlen; 
 
   ofstream myfile;
   int err;
-  char f[100]; 
-  strcpy(f, ssd); 
-  strcat(f, "/file-"); 
-  strcat(f, itoa(local_rank).c_str()); 
-  strcat(f, ".dat"); 
   for(int j=0; j<niter; j++) {
+    char f[100]; 
+    strcpy(f, ssd); 
+    strcat(f, "/file-"); 
+    strcat(f, itoa(local_rank).c_str()); 
+    strcat(f, ".dat-iter"); 
+    
+    strcat(f, itoa(j).c_str());
     int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
     lseek(fd, size, SEEK_SET);
     write(fd, "A", 1);
@@ -242,13 +260,16 @@ int main(int argc, char *argv[]) {
     tt.start_clock("m2mmf_write");
     for(int i=0; i<dim; i++)
       array[i] = i+j;
+    tt.stop_clock("m2mmf_write");
+    
+    tt.start_clock("m2mmf_sync"); 
     msync(addr, size, MS_SYNC);
     if (fsync) ::fsync(fd);
-    tt.stop_clock("m2mmf_write");
+    tt.stop_clock("m2mmf_sync"); 
     close(fd); 
     munmap(addr, size);
   }
-  M2MMF.raw = tt["m2mmf_write"].t; 
+  M2MMF.raw = tt["m2mmf_write"].t + tt["m2mmf_sync"].t;
 
   if (rank==0) {
     cout << "\n--------------- Memory to mmap file -------" << endl; 
@@ -259,17 +280,27 @@ int main(int argc, char *argv[]) {
 #ifdef DEBUG
   printf("SSD files: %s (Rank-%d)", f, rank);
 #endif
-  int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
-  void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
 
   char f2[100]; 
   strcpy(f2, lustre); 
   strcat(f2, "/file-mmf2lustre.dat");
-  int *array2 = (int*) addr;
-  MPI_Request request; 
+
+  MPI_Request request;
+  
   if (filePerProc==1) {
+    
     strcat(f2, itoa(rank).c_str()); 
-    for (int i=0; i<niter; i++) {
+    for (int i=0; i<niter; i++){
+      char f[100]; 
+      strcpy(f, ssd); 
+      strcat(f, "/file-"); 
+      strcat(f, itoa(local_rank).c_str()); 
+      strcat(f, ".dat-iter"); 
+	  
+      strcat(f, itoa(i).c_str());
+      int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
+      void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
       tt.stop_clock("mmf2l_open");
@@ -288,11 +319,20 @@ int main(int argc, char *argv[]) {
       
       tt.start_clock("mmf2l_close"); 
       MPI_File_close(&handle);
-      tt.stop_clock("mmf2l_close"); 
+      tt.stop_clock("mmf2l_close");
+      munmap(addr, size);
     }
-    
   } else {
     for (int i=0; i<niter; i++) {
+      char f[100]; 
+      strcpy(f, ssd); 
+      strcat(f, "/file-"); 
+      strcat(f, itoa(local_rank).c_str()); 
+      strcat(f, ".dat-iter"); 
+      strcat(f, itoa(i).c_str()); 
+      int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
+      void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
       tt.stop_clock("mmf2l_open");
@@ -311,7 +351,8 @@ int main(int argc, char *argv[]) {
 
       tt.start_clock("mmf2l_close"); 
       MPI_File_close(&handle);
-      tt.stop_clock("mmf2l_close"); 
+      tt.stop_clock("mmf2l_close");
+      munmap(addr, size);
     }
   }
   MMF2L.open = tt["mmf2l_open"].t;
@@ -326,7 +367,7 @@ int main(int argc, char *argv[]) {
     cout << "Write rate: " << size/(MMF2L.raw)/1024/1024*MMF2L.rep*nproc << " MB/sec" << endl;
     cout << "---------------------------------------------" << endl;
   }
-  munmap(addr, size);
+
   tt.PrintTiming(rank==0);
   MPI_Finalize();
   return 0;
