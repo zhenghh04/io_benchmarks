@@ -164,7 +164,7 @@ int main(int argc, char *argv[]) {
   MPI_Allreduce(&w, &wt[rank%ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
   MPI_Allreduce(wt, wtt, int(nproc/ppn), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   if (rank==0) {
-    cout << "SSD Write Rate: "
+    cout << "SSD Write Rate: "; 
     for(int i=0; i<nproc/ppn; i++) {
       cout << wtt[i] << " ";
       if (i%6==1) cout << endl; 
