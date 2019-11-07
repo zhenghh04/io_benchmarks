@@ -137,6 +137,7 @@ int main(int argc, char *argv[]) {
     strcpy(fn, ssd);
     strcat(fn, "/file.dat"); 
     strcat(fn, itoa(i).c_str()); 
+    strcat(fn, itoa(rank).c_str()); 
     tt.start_clock("w_open"); 
     int fd = open(fn, O_WRONLY | O_CREAT); 
     tt.stop_clock("w_open");
@@ -159,16 +160,17 @@ int main(int argc, char *argv[]) {
   }
   w = w/niter; 
   double wt[int(nproc/ppn)];
-  for(int i=0; i<nproc/ppn; i++) wt[i]=0;
   double wtt[int(nproc/ppn)];
-  MPI_Allreduce(&w, &wt[rank%ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
-  MPI_Allreduce(wt, wtt, int(nproc/ppn), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for(int i=0; i<nproc/ppn; i++) wt[i]=0;
+  MPI_Allreduce(&w, &wt[rank/ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
+  MPI_Allreduce(&wt, &wtt, nproc/ppn, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  
   if (rank==0) {
-    cout << "SSD Write Rate: "; 
+    cout << "SSD NODE PROP.: "; 
     for(int i=0; i<nproc/ppn; i++) {
-      cout << wtt[i] << " ";
-      if (i%6==1) cout << endl; 
+      cout << wtt[i]/ppn << " ";
     }
+    cout << endl; 
   }
   for(int i=0; i<nproc/ppn; i++) wtt[i]=wtt[i]/ppn;
   
@@ -176,12 +178,14 @@ int main(int argc, char *argv[]) {
   W.raw = tt["w_write"].t + tt["w_sync"].t; 
   W.close = tt["w_close"].t;
   W.rep = tt["w_open"].num_call; 
+  double w0 = size/W.raw/1024/1024*W.rep; 
+  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   if (rank==0) {
-    cout << "\n----------------   I/O WRITE  ---------------" << endl; 
-    cout << " Open time (s): " << W.open/W.rep << endl;
-    cout << "Write time (s): " << W.raw/W.rep << endl;
-    cout << "Close time (s): " << W.close/W.rep << endl;
-    cout << "    Write rate: " << size/W.raw/1024/1024*W.rep*nproc << endl;
+    cout << "\n----------------  SSD I/O WRITE  ---------------" << endl; 
+    cout << "     Open time (s): " << W.open/W.rep << endl;
+    cout << "    Write time (s): " << W.raw/W.rep << endl;
+    cout << "    Close time (s): " << W.close/W.rep << endl;
+    cout << "Write rate (MiB/s): " << w << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
   
@@ -232,12 +236,14 @@ int main(int argc, char *argv[]) {
   M2L.raw = tt["m2l_write"].t  +tt["m2l_sync"].t;
   M2L.close = tt["m2l_close"].t;
   M2L.rep = tt["m2l_open"].num_call; 
+  w0 = size/M2L.raw/1024/1024*M2L.rep; 
+  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
   if (rank==0) {
     cout << "\n--------------- Memory to Lustre (direct) -----" << endl; 
-    cout << "Open time (s): " << M2L.open/M2L.rep << endl; 
-    cout << "Write time (s): " << M2L.raw/M2L.rep << endl;
-    cout << "Close time (s): " << M2L.close/M2L.rep << endl;
-    cout << "Write rate: " << size/M2L.raw/1024/1024*M2L.rep*nproc << " MB/sec" << endl;
+    cout << "     Open time (s): " << M2L.open/M2L.rep << endl; 
+    cout << "    Write time (s): " << M2L.raw/M2L.rep << endl;
+    cout << "    Close time (s): " << M2L.close/M2L.rep << endl;
+    cout << "Write rate (MiB/s): " << w << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
 
@@ -273,11 +279,13 @@ int main(int argc, char *argv[]) {
     munmap(addr, size);
   }
   M2MMF.raw = tt["m2mmf_write"].t + tt["m2mmf_sync"].t;
+  w0 = size/M2MMF.raw/1024/1024*niter; 
+  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
 
   if (rank==0) {
     cout << "\n--------------- Memory to mmap file -------" << endl; 
-    cout << "Write time (s): " << M2MMF.raw/niter << endl; 
-    cout << "Write Rate: " << size/M2MMF.raw/1024/1024*niter*nproc << " MB/sec" << endl;
+    cout << "    Write time (s): " << M2MMF.raw/niter << endl; 
+    cout << "Write Rate (MiB/s): " << w << endl; 
     cout << "------------------------------------------------" << endl;
   }
 #ifdef DEBUG
@@ -376,12 +384,15 @@ int main(int argc, char *argv[]) {
   MMF2L.raw = (tt["mmf2l_iwrite"].t + tt["mmf2l_Wait"].t + tt["mmf2l_sync"].t);
   MMF2L.close = tt["mmf2l_close"].t;
   MMF2L.rep = niter; 
+  w0 = size/MMF2L.raw/1024/1024*niter; 
+  MPI_Allreduce(&w0, &w, 1, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  
   if (rank==0) {
     cout << "\n--------------- memmap file to lustre -----" << endl; 
-    cout << "Open time (s): " << MMF2L.open/MMF2L.rep << endl; 
-    cout << "Write time (s): " << MMF2L.raw/MMF2L.rep << endl; 
-    cout << "Close time (s): " << MMF2L.close/MMF2L.rep << endl; 
-    cout << "Write rate: " << size/(MMF2L.raw)/1024/1024*MMF2L.rep*nproc << " MB/sec" << endl;
+    cout << "     Open time (s): " << MMF2L.open/MMF2L.rep << endl; 
+    cout << "    Write time (s): " << MMF2L.raw/MMF2L.rep << endl; 
+    cout << "    Close time (s): " << MMF2L.close/MMF2L.rep << endl; 
+    cout << "Write rate (MiB/s): " << w << endl; 
     cout << "---------------------------------------------" << endl;
   }
   delete [] myarray;

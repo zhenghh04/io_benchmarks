@@ -79,7 +79,7 @@ class Timing {
     if (master) {
       cout << "\n***************** Timing Information *****************************" << endl;
       for(int i = 0; i<T.size(); i++) {
-	printf("*   %15s:       %4.8f sec        ( %-3d call  )   *\n", T[i].name.c_str(), T[i].t, T[i].num_call); 
+	printf("*   %15s:      %5.8f sec        ( %-3d call  )   *\n", T[i].name.c_str(), T[i].t, T[i].num_call); 
       }
       cout << "******************************************************************\n" << endl; 
     }
