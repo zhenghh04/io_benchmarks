@@ -53,16 +53,16 @@ int main(int argc, char *argv[]) {
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Status status;
-  int rank, nproc, filePerProc;
-  bool fsync=false; 
-  bool async=false; 
+  int rank, nproc;
+  int fsync = 0; 
+  int async = 0; 
+  int filePerProc=0;
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   for(int i=1; i<argc; i++) {
     if (strcmp(argv[i], "--dim") == 0) {
-      dim = atoi(argv[i+1]); 
-      i+=1;
+      dim = atoi(argv[i+1]); i+=1;
     } else if (strcmp(argv[i], "--niter") == 0) {
       niter = atoi(argv[i+1]); 
       i+=1;
@@ -73,12 +73,16 @@ int main(int argc, char *argv[]) {
       lustre = argv[i+1];
       i+=1;
     } else if (strcmp(argv[i], "--fsync")==0) {
-      fsync = true;
-    } else if (strcmp(argv[i], "--async")==0) {
-      async = true;
-    } else if (strcmp(argv[i], "--filePerProc")==0){ 
-      filePerProc = int(atoi(argv[i+1]));
+      fsync = atoi(argv[i+1]);
       i+=1;
+    } else if (strcmp(argv[i], "--async")==0) {
+      async = atoi(argv[i+1]);
+      i+=1;
+    } else if (strcmp(argv[i], "--filePerProc")==0){ 
+      filePerProc = atoi(argv[i+1]);
+      i+=1;
+    } else {
+      if (rank==0) cout << argv[0] << "--dim DIM --niter NTER --SSD SSD --luster LUSTRE --fsync [0|1] --async [0|1] --filePerProc [0|1]" << endl;  
     }
   }
   long size = sizeof(int) * dim;
@@ -101,6 +105,8 @@ int main(int argc, char *argv[]) {
     printf(" * Total num. of ranks: %d\n", nproc);
     printf(" *                 PPN: %d\n", ppn);
     printf(" *               fsync: %d\n", fsync);
+    printf(" *               async: %d\n", async);
+    printf(" *         filePerProc: %d\n", filePerProc);
     printf("-------------------------------------------\n"); 
   }
   MPI_Barrier(MPI_COMM_WORLD);
@@ -114,78 +120,71 @@ int main(int argc, char *argv[]) {
   else
     comm = MPI_COMM_WORLD; 
 
-  IOT M2L, M2S, M2MMF, MMF2L;
+  IOT M2L, M2S, M2MMF, MMF2L, W;
 
   MPI_Barrier(MPI_COMM_WORLD);
   int *myarrayssd = new int [dim];
   for(int i=0; i<dim; i++) {
     myarrayssd[i] = i; 
   }
-  if (filePerProc==1) {
-    for(int i=0; i<niter; i++) {
-      char fn[100]; 
-      strcpy(fn, ssd);
-      strcat(fn, "/file-mem2ssd.dat"); 
-      strcat(fn, itoa(rank).c_str());
-      strcat(fn, "-iter"); 
-      strcat(fn, itoa(i).c_str()); 
-      tt.start_clock("m2s_open"); 
-      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
-      tt.stop_clock("m2s_open");
-
-      tt.start_clock("m2s_write"); 
-      MPI_File_write(handle, myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
-      tt.stop_clock("m2s_write");
-
-      tt.start_clock("m2s_sync"); 
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_sync"); 
-
-      tt.start_clock("m2s_close"); 
-      MPI_File_close(&handle);
-      tt.stop_clock("m2s_close"); 
-    }
-  } else {
-    for(int i=0; i<niter; i++) {
-      char fn[100]; 
-      strcpy(fn, ssd);
-      strcat(fn, "/file-mem2ssd.dat"); 
-      strcat(fn, "-iter"); 
-      strcat(fn, itoa(i).c_str()); 
-      strcat(fn, itoa(i).c_str()); 
-      tt.start_clock("m2s_open"); 
-      MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
-      tt.stop_clock("m2s_open");
-      
-      tt.start_clock("m2s_write"); 
-      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
-      tt.stop_clock("m2s_write");
-      
-      //if (fsync) MPI_File_sync(handle);
-      tt.start_clock("m2s_sync"); 
-      if (fsync) MPI_File_sync(handle);
-      tt.stop_clock("m2s_sync"); 
-      
-      tt.start_clock("m2s_close"); 
-      MPI_File_close(&handle);
-      tt.stop_clock("m2s_close"); 
+  double write_rate[niter]; 
+  double w2 = 0.0; 
+  double w = 0.0; 
+  
+  for(int i=0; i<niter; i++) {
+    MPI_Barrier(MPI_COMM_WORLD); 
+    char fn[100]; 
+    strcpy(fn, ssd);
+    strcat(fn, "/file.dat"); 
+    strcat(fn, itoa(i).c_str()); 
+    tt.start_clock("w_open"); 
+    int fd = open(fn, O_WRONLY | O_CREAT); 
+    tt.stop_clock("w_open");
+    double t0 = MPI_Wtime();
+    tt.start_clock("w_write"); 
+    write(fd, (char *)myarray, size); 
+    tt.stop_clock("w_write");
+    tt.start_clock("w_sync"); 
+    if (fsync) ::fsync(fd); 
+    tt.stop_clock("w_sync");
+    double t1 = MPI_Wtime(); 
+    tt.start_clock("w_close"); 
+    close(fd);
+    tt.stop_clock("w_close"); 
+    tt.start_clock("remove"); 
+    remove(fn); 
+    tt.stop_clock("remove"); 
+    write_rate[i] = size/(t1-t0)/1024/1024;
+    w += write_rate[i]; 
+  }
+  w = w/niter; 
+  double wt[int(nproc/ppn)];
+  for(int i=0; i<nproc/ppn; i++) wt[i]=0;
+  double wtt[int(nproc/ppn)];
+  MPI_Allreduce(&w, &wt[rank%ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
+  MPI_Allreduce(wt, wtt, int(nproc/ppn), MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  if (rank==0) {
+    cout << "SSD Write Rate: "
+    for(int i=0; i<nproc/ppn; i++) {
+      cout << wtt[i] << " ";
+      if (i%6==1) cout << endl; 
     }
   }
-
-  M2S.open = tt["m2s_open"].t;
-  M2S.raw = tt["m2s_write"].t + tt["m2s_sync"].t; 
-  M2S.close = tt["m2s_close"].t;
-  M2S.rep = tt["m2s_open"].num_call; 
-
+  for(int i=0; i<nproc/ppn; i++) wtt[i]=wtt[i]/ppn;
+  
+  W.open = tt["w_open"].t;
+  W.raw = tt["w_write"].t + tt["w_sync"].t; 
+  W.close = tt["w_close"].t;
+  W.rep = tt["w_open"].num_call; 
   if (rank==0) {
-    cout << "\n--------------- Memory to SSD (direct) -----" << endl; 
-    cout << "Open time (s): " << M2S.open/M2S.rep << endl;
-    cout << "Write time (s): " << M2S.raw/M2S.rep << endl;
-    cout << "Close time (s): " << M2S.close/M2S.rep << endl;
-    cout << "Write rate: " << size/M2S.raw/1024/1024*M2S.rep*nproc << " MB/sec" << endl;
+    cout << "\n----------------   I/O WRITE  ---------------" << endl; 
+    cout << " Open time (s): " << W.open/W.rep << endl;
+    cout << "Write time (s): " << W.raw/W.rep << endl;
+    cout << "Close time (s): " << W.close/W.rep << endl;
+    cout << "    Write rate: " << size/W.raw/1024/1024*W.rep*nproc << endl;
     cout << "-----------------------------------------------" << endl; 
   }
-
+  
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 

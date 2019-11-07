@@ -14,12 +14,12 @@ else:
     parser.add_argument("--SSD", default="SSD")
     parser.add_argument("--ppn", default=2, type=int)
 parser.add_argument("--lustre", default="./scratch/")
-parser.add_argument("--niter", default=1, type=int)
+parser.add_argument("--niter", default=16, type=int)
 parser.add_argument("--lustreStripeSize", default='8m')
 parser.add_argument("--lustreStripeCount", default=48, type=int)
 parser.add_argument("--filePerProc", type=int, default=0)
-parser.add_argument("--fsync", action='store_true')
-parser.add_argument("--async", action='store_true')
+parser.add_argument("--fsync",type=int, default=1)
+parser.add_argument("--async",type=int, default=1)
 args = parser.parse_args()
 options = vars(args)
 print(options)
@@ -33,11 +33,8 @@ try:
     os.mkdir(args.SSD)
 except:
     print("already exist")
-extra_opts=" --filePerProc %s" %args.filePerProc
-if args.fsync:
-    extra_opts = "--fsync"
-if args.async:
-    extra_opts += " --async"
+extra_opts=" --filePerProc %s --fsync %s --async %s" %(args.filePerProc, args.fsync, args.async)
+print(extra_opts)
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, lustre))
     os.system("lfs getstripe %s"%lustre)
