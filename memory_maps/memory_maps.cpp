@@ -87,7 +87,7 @@ int main(int argc, char *argv[]) {
   int local_rank, ppn; 
   MPI_Comm_rank(local_comm, &local_rank);
   MPI_Comm_size(local_comm, &ppn);
-
+  MPI_Barrier(MPI_COMM_WORLD);
   if (rank==0)  {
     printf("----------- SSD Staging test---------------\n"); 
     printf(" *           Dimension: %d\n", dim); 
@@ -100,8 +100,7 @@ int main(int argc, char *argv[]) {
     printf(" *               fsync: %d\n", fsync);
     printf("-------------------------------------------\n"); 
   }
-
-  clock_t t0, t1; 
+  MPI_Barrier(MPI_COMM_WORLD);
   int *myarray = new int [dim];
   for(int i=0; i<dim; i++) {
     myarray[i] = i; 
@@ -111,22 +110,21 @@ int main(int argc, char *argv[]) {
     comm = MPI_COMM_SELF; 
   else
     comm = MPI_COMM_WORLD; 
-  char f1[100]; 
+
   IOT M2L, M2S, M2MMF, MMF2L;
 
-
   MPI_Barrier(MPI_COMM_WORLD);
-  char fn[100]; 
-  strcpy(fn, ssd);
-  strcat(fn, "/file-mem2ssd.dat"); 
   int *myarrayssd = new int [dim];
   for(int i=0; i<dim; i++) {
     myarrayssd[i] = i; 
   }
   if (filePerProc==1) {
-    strcat(fn, itoa(rank).c_str());
-    strcat(fn, "-iter"); 
     for(int i=0; i<niter; i++) {
+      char fn[100]; 
+      strcpy(fn, ssd);
+      strcat(fn, "/file-mem2ssd.dat"); 
+      strcat(fn, itoa(rank).c_str());
+      strcat(fn, "-iter"); 
       strcat(fn, itoa(i).c_str()); 
       tt.start_clock("m2s_open"); 
       MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
@@ -145,26 +143,30 @@ int main(int argc, char *argv[]) {
       tt.stop_clock("m2s_close"); 
     }
   } else {
-    strcat(fn, "-iter"); 
     for(int i=0; i<niter; i++) {
+      char fn[100]; 
+      strcpy(fn, ssd);
+      strcat(fn, "/file-mem2ssd.dat"); 
+      strcat(fn, itoa(rank).c_str());
+      strcat(fn, "-iter"); 
+      strcat(fn, itoa(i).c_str()); 
       strcat(fn, itoa(i).c_str()); 
       tt.start_clock("m2s_open"); 
       MPI_File_open(comm, fn, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2s_open");
-
+      
       tt.start_clock("m2s_write"); 
       MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarrayssd, dim, MPI_INT, MPI_STATUS_IGNORE);
       tt.stop_clock("m2s_write");
-
+      
       //if (fsync) MPI_File_sync(handle);
       tt.start_clock("m2s_sync"); 
       if (fsync) MPI_File_sync(handle);
       tt.stop_clock("m2s_sync"); 
-
+      
       tt.start_clock("m2s_close"); 
       MPI_File_close(&handle);
       tt.stop_clock("m2s_close"); 
-      
     }
   }
   M2S.open = tt["m2s_open"].t;
@@ -183,10 +185,11 @@ int main(int argc, char *argv[]) {
 
   
   if (filePerProc==1) {
-    strcpy(f1, lustre);
-    strcat(f1, "/file-mem2lustre.dat"); 
-    strcat(f1, itoa(rank).c_str()); 
     for(int i=0; i<niter; i++) {
+      char f1[100]; 
+      strcpy(f1, lustre);
+      strcat(f1, "/file-mem2lustre.dat"); 
+      strcat(f1, itoa(rank).c_str()); 
       tt.start_clock("m2l_open");
       MPI_File_open(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2l_open");
@@ -203,9 +206,11 @@ int main(int argc, char *argv[]) {
       tt.stop_clock("m2l_close"); 
     }
   } else {
-    strcpy(f1, lustre);
-    strcat(f1, "/file-mem2lustre.dat"); 
     for(int i=0; i<niter; i++) {
+      char f1[100]; 
+      strcpy(f1, lustre);
+      strcat(f1, "/file-mem2lustre.dat"); 
+      strcat(f1, itoa(rank).c_str()); 
       tt.start_clock("m2l_open");
       MPI_File_open(MPI_COMM_WORLD, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("m2l_open");
@@ -281,22 +286,20 @@ int main(int argc, char *argv[]) {
   printf("SSD files: %s (Rank-%d)", f, rank);
 #endif
 
-  char f2[100]; 
-  strcpy(f2, lustre); 
-  strcat(f2, "/file-mmf2lustre.dat");
 
   MPI_Request request;
   
   if (filePerProc==1) {
-    
-    strcat(f2, itoa(rank).c_str()); 
     for (int i=0; i<niter; i++){
+      char f2[100]; 
+      strcpy(f2, lustre); 
+      strcat(f2, "/file-mmf2lustre.dat");
+      strcat(f2, itoa(rank).c_str()); 
       char f[100]; 
       strcpy(f, ssd); 
       strcat(f, "/file-"); 
       strcat(f, itoa(local_rank).c_str()); 
       strcat(f, ".dat-iter"); 
-	  
       strcat(f, itoa(i).c_str());
       int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
       void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
@@ -324,6 +327,11 @@ int main(int argc, char *argv[]) {
     }
   } else {
     for (int i=0; i<niter; i++) {
+      char f2[100]; 
+      strcpy(f2, lustre); 
+      strcat(f2, "/file-mmf2lustre.dat");
+      strcat(f2, itoa(rank).c_str()); 
+
       char f[100]; 
       strcpy(f, ssd); 
       strcat(f, "/file-"); 

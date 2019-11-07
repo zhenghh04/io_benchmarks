@@ -2,14 +2,14 @@
 #!/bin/sh
 CFLAGS=-O3 -g
 
-CC=g++
-HPCTW=$(HOME)/opt/hpctw
-MPI_LIBS=-Wl,-rpath,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
-HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
+#CC=g++
+#HPCTW=$(HOME)/opt/hpctw
+#MPI_LIBS=-Wl,-rpath,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
+#HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 
-#CC=mpicc
-#HPCTW=$(HOME)/soft/hpctw/intel
-#HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz 
+CC=mpicc
+HPCTW=$(HOME)/soft/hpctw/intel
+HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz 
 
 LIBS=$(HPCTW_LIBS) $(MPI_LIBS)
 
