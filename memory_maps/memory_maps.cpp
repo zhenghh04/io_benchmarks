@@ -20,6 +20,7 @@
 #include <sys/stat.h>
 #include <unistd.h>
 #include "timing.h"
+#include "stat.h"
 using namespace std; 
 Timing tt; 
 #include <sstream>
@@ -127,10 +128,11 @@ int main(int argc, char *argv[]) {
   for(int i=0; i<dim; i++) {
     myarrayssd[i] = i; 
   }
+    
+// testing SSD write performance using multiple ranks posix. For this test, we will always using file per rank
   double write_rate[niter]; 
-  double w2 = 0.0; 
   double w = 0.0; 
-  
+  double std = 0.0; 
   for(int i=0; i<niter; i++) {
     MPI_Barrier(MPI_COMM_WORLD); 
     char fn[100]; 
@@ -139,15 +141,17 @@ int main(int argc, char *argv[]) {
     strcat(fn, itoa(i).c_str()); 
     strcat(fn, itoa(rank).c_str()); 
     tt.start_clock("w_open"); 
-    int fd = open(fn, O_WRONLY | O_CREAT); 
+    int fd = open(fn, O_WRONLY | O_CREAT); // write only for 
     tt.stop_clock("w_open");
     double t0 = MPI_Wtime();
+    tt.start_clock("w_rate")
     tt.start_clock("w_write"); 
     write(fd, (char *)myarray, size); 
     tt.stop_clock("w_write");
     tt.start_clock("w_sync"); 
     if (fsync) ::fsync(fd); 
     tt.stop_clock("w_sync");
+    tt.stop_clock("w_rate")
     double t1 = MPI_Wtime(); 
     tt.start_clock("w_close"); 
     close(fd);
@@ -155,24 +159,32 @@ int main(int argc, char *argv[]) {
     tt.start_clock("remove"); 
     remove(fn); 
     tt.stop_clock("remove"); 
-    write_rate[i] = size/(t1-t0)/1024/1024;
-    w += write_rate[i]; 
   }
-  w = w/niter; 
+  stat(tt["w_rate"].t_iter, niter, w, std, 'i');
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
   double wt[int(nproc/ppn)];
   double wtt[int(nproc/ppn)];
   for(int i=0; i<nproc/ppn; i++) wt[i]=0;
   MPI_Allreduce(&w, &wt[rank/ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
   MPI_Allreduce(&wt, &wtt, nproc/ppn, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
-  
+  for(int i=0; i<nproc/ppn; i++) wtt[i]=wtt[i]/ppn;
+
+  double st[int(nproc/ppn)];
+  double stt[int(nproc/ppn)];
+  for(int i=0; i<nproc/ppn; i++) wt[i]=0;
+  std = std*std; 
+  MPI_Allreduce(&std, &st[rank/ppn], 1, MPI_DOUBLE, MPI_SUM, local_comm);
+  MPI_Allreduce(&st, &stt, nproc/ppn, MPI_DOUBLE, MPI_SUM, MPI_COMM_WORLD);
+  for(int i=0; i<nproc/ppn; i++) stt[i] = sqrt(stt[i]/ppn);
+
   if (rank==0) {
     cout << "SSD NODE PROP.: "; 
     for(int i=0; i<nproc/ppn; i++) {
-      cout << wtt[i]/ppn << " ";
+      cout << wtt[i] << " +/- " << stt[i] << " ";
     }
     cout << endl; 
   }
-  for(int i=0; i<nproc/ppn; i++) wtt[i]=wtt[i]/ppn;
   
   W.open = tt["w_open"].t;
   W.raw = tt["w_write"].t + tt["w_sync"].t; 
