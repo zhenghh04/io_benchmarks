@@ -35,13 +35,18 @@ for d in root+args.directory, args.lustre:
     cmkdir(d)
 if args.SSD!="/local/scratch/":
     cmkdir(args.SSD)
+    if (args.SSD[0]!='/'):
+        args.SSD = root+"/"+args.SSD
 extra_opts=" --filePerProc %s --fsync %s --async %s" %(args.filePerProc, args.fsync, args.async)
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
     os.system("lfs getstripe %s"%args.lustre)
+    print("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
     os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
+    print("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
     os.system("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
+
 def read_to_str(fin, string):
     '''                                                                                                                                           Read file until reaching at the specified string                                                                                              fin can be the file name or file stream                                                                                                       '''
     f = 0
