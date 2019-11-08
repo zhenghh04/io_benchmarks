@@ -66,6 +66,7 @@ int main(int argc, char *argv[]) {
   int fsync = 0; 
   int async = 0; 
   int filePerProc=0;
+  int collective=0; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -89,6 +90,9 @@ int main(int argc, char *argv[]) {
       i+=1;
     } else if (strcmp(argv[i], "--filePerProc")==0){ 
       filePerProc = atoi(argv[i+1]);
+      i+=1;
+    } else if (strcmp(argv[i], "--collective")==0){ 
+      collective = atoi(argv[i+1]);
       i+=1;
     } else {
       if (rank==0) cout << argv[0] << "--dim DIM --niter NTER --SSD SSD --luster LUSTRE --fsync [0|1] --async [0|1] --filePerProc [0|1]" << endl;  
@@ -117,6 +121,7 @@ int main(int argc, char *argv[]) {
     printf(" *               fsync: %d\n", fsync);
     printf(" *               async: %d\n", async);
     printf(" *         filePerProc: %d\n", filePerProc);
+    printf(" *          collective: %d\n", collective);
     printf("-------------------------------------------\n"); 
   }
   MPI_Barrier(MPI_COMM_WORLD);
@@ -246,7 +251,10 @@ int main(int argc, char *argv[]) {
       tt.stop_clock("m2l_open");
       tt.start_clock("m2l_rate");
       tt.start_clock("m2l_write"); 
-      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      if (collective==1) 
+	MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      else
+	MPI_File_write_at(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
       tt.stop_clock("m2l_write"); 
 
       tt.start_clock("m2l_sync"); 
@@ -392,9 +400,11 @@ int main(int argc, char *argv[]) {
       tt.start_clock("mmf2l_rate");
       if (async) {
 	tt.start_clock("mmf2l_iwrite"); 
-	MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
+	if (collective)
+	  MPI_File_iwrite_at_all(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
+	else
+	  MPI_File_iwrite_at(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
 	tt.stop_clock("mmf2l_iwrite");
-
 	tt.start_clock("mmf2l_Wait"); 
 	MPI_Waitall(1, &request, &status);
 	tt.stop_clock("mmf2l_Wait");

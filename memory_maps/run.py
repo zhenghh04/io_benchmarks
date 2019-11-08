@@ -12,7 +12,7 @@ parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("--dim", type=int, default=2097152)
 if hostname.find("theta")!=-1:
     root="/gpfs/mira-home/hzheng/io_benchmarks/memory_maps/"
-    parser.add_argument("--SSD", default="/local/scratch/")
+    parser.add_argument("--SSD", default="/local/scratch/", help="Directory for node local storage")
     parser.add_argument("--num_nodes", default=int(os.environ['COBALT_JOBSIZE']), type=int)
     parser.add_argument("--ppn", default=16, type=int)
 else:
@@ -29,6 +29,7 @@ parser.add_argument("--fsync",type=int, default=1)
 parser.add_argument("--async",type=int, default=1)
 parser.add_argument("--directory", default="run/")
 parser.add_argument("--output", default="run.log")
+parser.add_argument("--collective", default=1, type=int)
 args = parser.parse_args()
 exe=root+"memory_maps.x"
 options = vars(args)
@@ -42,11 +43,11 @@ if args.SSD!="/local/scratch/":
     cmkdir(args.SSD)
     if (args.SSD[0]!='/'):
         args.SSD = root+"/"+args.SSD
-extra_opts=" --filePerProc %s --fsync %s --async %s" %(args.filePerProc, args.fsync, args.async)
+extra_opts=" --filePerProc %s --fsync %s --async %s --collective %s" %(args.filePerProc, args.fsync, args.async, args.collective)
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
     os.system("lfs getstripe %s"%args.lustre)
-    print("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
+    print("module load mpich-3.3.1-intel-2019; cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
     os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
     print("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))

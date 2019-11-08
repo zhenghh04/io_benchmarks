@@ -1,6 +1,7 @@
 #Makefile
 #!/bin/sh
 HOST=$(shell hostname)
+HPCTW=1
 CFLAGS=-O3 -g
 ifeq ($(HOST), zion)
 	CC=g++
@@ -11,6 +12,10 @@ else
 	CC=mpicc
 	HPCTW=$(HOME)/soft/hpctw/intel
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz
+endif
+# turn off HPCTW profiling
+ifeq ($(HPCTW), 0)
+	HPCTW_LIBS=
 endif
 
 LIBS=$(HPCTW_LIBS) $(MPI_LIBS)
