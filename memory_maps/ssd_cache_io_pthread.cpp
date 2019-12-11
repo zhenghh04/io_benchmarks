@@ -15,6 +15,7 @@
 #include <sys/statvfs.h>
 #include <stdlib.h>
 #include <sstream>
+#include <cstring>
 using namespace std;
 int SSD_CACHE_FD;// file descripter of SSD
 char SSD_CACHE_FNAME[255]; // file name
@@ -106,9 +107,7 @@ string itoa ( T Number)
 int MPI_File_open(MPI_Comm comm, const char *filename,
 		  int amode, MPI_Info info,
 		  MPI_File *fh) {
-#ifdef SSD_CACHE_DEBUG
-  printf("SSD_CACHE: MPI_File_open\n"); 
-#endif
+
   srand(time(NULL));   // Initialization, should only be called once.
   int ierr = PMPI_File_open(comm, filename, amode, info, fh);
   MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &SSD_CACHE_COMM);
@@ -119,6 +118,9 @@ int MPI_File_open(MPI_Comm comm, const char *filename,
   strcat(SSD_CACHE_FNAME, "-"); 
   strcat(SSD_CACHE_FNAME, itoa(SSD_CACHE_RANK).c_str());
 #ifdef SSD_CACHE_DEBUG
+  if (SSD_CACHE_RANK==0) {
+    printf("SSD_CACHE: MPI_File_open\n"); 
+  }
   printf("SSD file: %s\n", SSD_CACHE_FNAME);
 #endif
   SSD_CACHE_FD = open(SSD_CACHE_FNAME,  O_RDWR | O_CREAT | O_TRUNC, 0600);
@@ -134,7 +136,8 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
 			  MPI_Datatype datatype,
 			  MPI_Status *status) {
 #ifdef SSD_CACHE_DEBUG
-  printf("SSD_CACHE: MPI_File_write_at_all\n"); 
+  if (SSD_CACHE_RANK==0)
+    printf("SSD_CACHE: MPI_File_write_at_all\n"); 
 #endif
 
   int dt_size; 
@@ -152,8 +155,7 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
     SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   }
 
-  if (SSD_CACHE_COMM !=NULL) 
-    ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
+  ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   SSD_CACHE_REQUEST_LIST->fd = fh;
@@ -183,7 +185,8 @@ int MPI_File_write_at(MPI_File fh, MPI_Offset offset,
 		      MPI_Datatype datatype,
 		      MPI_Status *status) {
 #ifdef SSD_CACHE_DEBUG
-  printf("SSD_CACHE: MPI_File_write_at\n"); 
+  if (SSD_CACHE_RANK==0)
+    printf("SSD_CACHE: MPI_File_write_at\n"); 
 #endif
   
   int dt_size; 
@@ -232,7 +235,8 @@ int MPI_File_write(MPI_File fh,
 		   MPI_Datatype datatype,
 		   MPI_Status *status) {
 #ifdef SSD_CACHE_DEBUG
-  printf("SSD_CACHE: MPI_File_write\n"); 
+  if (SSD_CACHE_RANK==0)
+    printf("SSD_CACHE: MPI_File_write\n"); 
 #endif
   int dt_size; 
   MPI_Type_size(datatype, &dt_size);
@@ -250,8 +254,7 @@ int MPI_File_write(MPI_File fh,
     SSD_CACHE_OFFSET=0;
   }
   
-  if (SSD_CACHE_COMM !=NULL) 
-    ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
+  ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   
@@ -278,7 +281,8 @@ int MPI_File_write(MPI_File fh,
 
 int MPI_File_close(MPI_File *fh) {
 #ifdef SSD_CACHE_DEBUG
-  printf("SSD_CACHE: MPI_File_close\n"); 
+  if (SSD_CACHE_RANK==0)
+    printf("SSD_CACHE: MPI_File_close\n"); 
 #endif
   while (SSD_CACHE_NUM_REQUEST>0) {
     pthread_cond_signal(&SSD_CACHE_IO_COND);
