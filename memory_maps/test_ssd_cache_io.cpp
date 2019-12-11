@@ -53,12 +53,16 @@ int fail(char *filename, int linenumber) {
   return 0; /*Make compiler happy */
 }
 #define QUIT fail(__FILE__, __LINE__ )
-
+#ifdef THETA
+#define SSD_CACHE_PATH "/local/scratch/"
+#else
+#define SSD_CACHE_PATH "./SSD/"
+#endif
 int main(int argc, char *argv[]) {
   int i=0;
   int dim=1024*1024*2;
   int niter=1;
-  char *ssd = "/local/scratch/";
+  char *ssd = SSD_CACHE_PATH;
   char *lustre="./scratch/"; 
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
@@ -76,9 +80,6 @@ int main(int argc, char *argv[]) {
       dim = atoi(argv[i+1]); i+=1;
     } else if (strcmp(argv[i], "--niter") == 0) {
       niter = atoi(argv[i+1]); 
-      i+=1;
-    } else if (strcmp(argv[i], "--SSD") == 0) {
-      ssd = argv[i+1];
       i+=1;
     } else if (strcmp(argv[i], "--lustre") == 0) {
       lustre = argv[i+1];
