@@ -9,7 +9,7 @@ ifeq ($(HOST), zion)
 	MPI_LIBS=-Wl,-rpath,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 else
-	CC=mpicc
+	CC=mpicxx
 	HPCTW=$(HOME)/soft/hpctw/intel
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz
 endif
