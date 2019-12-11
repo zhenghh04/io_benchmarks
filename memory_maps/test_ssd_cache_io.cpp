@@ -133,7 +133,7 @@ int main(int argc, char *argv[]) {
   strcat(f1, "/file-mem2lustre.dat"); 
   strcat(f1, itoa(rank).c_str());
   tt.start_clock("m2l_open");
-  MPI_File_open_cache(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+  MPI_File_open(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
   tt.stop_clock("m2l_open");
   for(int i=0; i<niter; i++) {
     char f1[100]; 
@@ -142,13 +142,14 @@ int main(int argc, char *argv[]) {
     tt.start_clock("m2l_rate");
     tt.start_clock("m2l_write"); 
     if (collective==1) 
-      MPI_File_write_at_all_cache(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      MPI_File_write_at_all(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
     else
-      MPI_File_write_at_cache(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
-    tt.stop_clock("m2l_write"); 
+      MPI_File_write_at(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+    tt.stop_clock("m2l_write");
+    tt.stop_clock("m2l_rate");
   }
   tt.start_clock("m2l_close"); 
-  MPI_File_close_cache(&handle);
+  MPI_File_close(&handle);
   tt.stop_clock("m2l_close");
   
   M2L.open = tt["m2l_open"].t;

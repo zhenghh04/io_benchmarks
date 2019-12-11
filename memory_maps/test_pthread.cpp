@@ -9,92 +9,93 @@
 #include "timing.h"
 #include "pthread_barrier.h"
 
-
 #define NUM_THREADS 2
 using namespace std;
 Timing tt; 
 /* create thread argument struct for thr_func() */
 pthread_cond_t cond1 = PTHREAD_COND_INITIALIZER; 
-// declaring mutex 
-pthread_mutex_t mylock = PTHREAD_MUTEX_INITIALIZER;
-bool WAIT = false;
+pthread_cond_t cond0 = PTHREAD_COND_INITIALIZER; 
 
-pthread_barrier_t mybarrier;
-pthread_barrier_init(&mybarrier, NULL, 2);
+// declaring mutex 
+pthread_mutex_t count_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t cond_lock = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t cond0_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct _thread_data_t {
   int fd; 
   const void *buf;
   size_t nbyte;
   size_t offset; 
+  struct _thread_data_t *next; 
 } thread_data_t;
 
+
 /* thread function */
-int done = 1; 
+thread_data_t thr_data;
+thread_data_t *REQUEST_LIST=NULL, *REQUEST_HEAD=NULL;
+int num_request = 0;
+
 void *thr_func(void *arg) {
-  thread_data_t *data = (thread_data_t *)arg;
-  pthread_mutex_lock(&mylock);
-  if (done == 1) { 
-    // let's wait on conition variable cond1 
-    done = 2; 
-    printf("Waiting on condition variable cond1\n"); 
-    pthread_cond_wait(&cond1, &mylock); 
-  } 
-  else { 
-    // Let's signal condition variable cond1 
-    printf("Signaling condition variable cond1\n"); 
-    pthread_cond_signal(&cond1); 
-  } 
-  pthread_mutex_unlock(&mylock);
-  WAIT=true;
-  pwrite(data->fd, data->buf, data->nbyte, data->offset);
-  sleep(1);
-  fsync(data->fd);
-  WAIT=false;
-  pthread_barrier_wait(&mybarrier);
-  pthread_mutex_lock(&mylock);
-  done = 1;
+    while(num_request >= 0) {
+      if (num_request>0) {
+          thread_data_t *data = REQUEST_HEAD;
+          pwrite(data->fd, data->buf, data->nbyte, data->offset);
+          fsync(data->fd);
+          pthread_mutex_lock(&count_lock);
+          REQUEST_HEAD=REQUEST_HEAD->next; 
+          num_request--;
+          pthread_mutex_unlock(&count_lock);
+      } 
+      if (num_request==0) {
+          pthread_cond_signal(&cond0);
+          pthread_mutex_lock(&cond_lock);
+          pthread_cond_wait(&cond1, &cond_lock); 
+          pthread_mutex_unlock(&cond_lock);
+      }
+    }
   return NULL; 
 }
 
-void *master_wait() {
-  if (WAIT) { 
-    // let's wait on conition variable cond1 
-    done = 2; 
-    printf("Waiting on condition variable cond1\n"); 
-    pthread_cond_wait(&cond1, &mylock); 
-  } 
-  else { 
-    // Let's signal condition variable cond1 
-    printf("Signaling condition variable cond1\n"); 
-    pthread_cond_signal(&cond1); 
-  } 
-  pthread_mutex_unlock(&mylock);
-  done = 1;
-}
-
 pthread_t SSD_CACHE_PTHREAD;
-thread_data_t thr_data;
-int rc = pthread_create(&SSD_CACHE_PTHREAD, NULL, thr_func, &thr_data);
+int rc = pthread_create(&SSD_CACHE_PTHREAD, NULL, thr_func, NULL);
 
 int pwrite_thread(int fd, const void *buf, size_t nbyte, size_t offset) {
-  thr_data.fd = fd; 
-  thr_data.buf = buf;
-  thr_data.nbyte = nbyte;
-  thr_data.offset = offset; 
-  done = 2;
-
-  rc = pthread_cond_broadcast(&cond1);
+  pthread_mutex_lock(&count0_lock);
+  REQUEST_LIST->fd = fd;
+  REQUEST_LIST->buf = buf; 
+  REQUEST_LIST->nbyte = nbyte; 
+  REQUEST_LIST->offset = offset; 
+  REQUEST_LIST->next = (thread_data_t*) malloc(sizeof(thread_data_t)); 
+  REQUEST_LIST = REQUEST_LIST->next; 
+  pthread_mutex_unlock(&count0_lock);
+  pthread_mutex_lock(&count_lock);
+  num_request++;
+  pthread_mutex_unlock(&count_lock);
+  rc = pthread_cond_signal(&cond1);
   return 0; 
 }
+
+int OPEN(const char *pathname, int flags, mode_t mode) {
+    REQUEST_LIST = (thread_data_t*) malloc(sizeof(thread_data_t)); 
+    pthread_mutex_lock(&count_lock);
+    REQUEST_HEAD = REQUEST_LIST; 
+    pthread_mutex_unlock(&count_lock);
+    return open(pathname, flags, mode);  
+}
+
 int CLOSE(int fd) {
-  pthread_join(SSD_CACHE_PTHREAD, NULL);
+  while (num_request>0) {
+    pthread_mutex_lock(&cond0_lock);
+    pthread_cond_wait(&cond0, &cond0_lock); 
+    pthread_mutex_unlock(&cond0_lock);
+    rc = pthread_cond_signal(&cond1);
+  }
   close(fd);
   return 0; 
 }
 
 int main(int argc, char **argv) {
-  int fd1 = open("test.dat", O_RDWR | O_CREAT, 0600);
+  int fd1 = OPEN("test.dat", O_RDWR | O_CREAT, 0600);
   int array[1024];
   int dim = 102457600; 
   array[0] = 1;
@@ -102,10 +103,8 @@ int main(int argc, char **argv) {
   for(int i=0; i<4; i++) {
     tt.start_clock("WRITE");
     pwrite_thread(fd1, array, sizeof(int)*dim, i*sizeof(int)*dim);
-    pthread_barrier_wait(&mybarrier);
     tt.stop_clock("WRITE");
   }
-
   tt.start_clock("close");
   CLOSE(fd1);
   fsync(fd1);
