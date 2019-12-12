@@ -1,6 +1,5 @@
 #ifndef SSD_CACHE_IO_H_
 #define SSD_CACHE_IO_H_
-
 int MPI_File_open_cache(MPI_Comm comm, const char *filename,
 		  int amode, MPI_Info info,
 		  MPI_File *fh);

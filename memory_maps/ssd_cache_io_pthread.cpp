@@ -111,7 +111,7 @@ string itoa ( T Number)
   return ss.str(); 
 }
 
-int MPI_File_open(MPI_Comm comm, const char *filename,
+int MPI_File_open_cache(MPI_Comm comm, const char *filename,
 		  int amode, MPI_Info info,
 		  MPI_File *fh) {
   srand(time(NULL));   // Initialization, should only be called once.
@@ -137,7 +137,7 @@ int MPI_File_open(MPI_Comm comm, const char *filename,
   return ierr; 
 }
 
-int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
+int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
 			  const void *buf, int count,
 			  MPI_Datatype datatype,
 			  MPI_Status *status) {
@@ -191,7 +191,7 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
 
 
 
-int MPI_File_write_at(MPI_File fh, MPI_Offset offset,
+int MPI_File_write_at_cache(MPI_File fh, MPI_Offset offset,
 		      const void *buf, int count,
 		      MPI_Datatype datatype,
 		      MPI_Status *status) {
@@ -247,7 +247,7 @@ int MPI_File_write_at(MPI_File fh, MPI_Offset offset,
 
 
     
-int MPI_File_write(MPI_File fh,
+int MPI_File_write_cache(MPI_File fh,
 		   const void *buf, int count,
 		   MPI_Datatype datatype,
 		   MPI_Status *status) {
@@ -302,7 +302,7 @@ int MPI_File_write(MPI_File fh,
   return 0; 
 }
 
-int MPI_File_close(MPI_File *fh) {
+int MPI_File_close_cache(MPI_File *fh) {
 #ifdef SSD_CACHE_DEBUG
   if (SSD_CACHE_RANK==0)
     printf("SSD_CACHE: MPI_File_close\n"); 

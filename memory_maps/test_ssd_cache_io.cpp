@@ -21,7 +21,7 @@
 #include <unistd.h>
 #include "timing.h"
 #include "stat.h"
-#include "ssd_cache_io.h"
+#include "ssd_cache_io_wrapper.h"
 using namespace std; 
 Timing tt; 
 #include <sstream>
