@@ -164,7 +164,8 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
     SSD_CACHE_OFFSET=0;
     SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   }
-  ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
+  ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET); 
+  fsync(SSD_CACHE_FD);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   SSD_CACHE_REQUEST_LIST->fd = fh;
@@ -220,9 +221,9 @@ int MPI_File_write_at_cache(MPI_File fh, MPI_Offset offset,
   
   if (SSD_CACHE_COMM !=NULL) 
     ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
+  fsync(SSD_CACHE_FD);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
-  
   SSD_CACHE_REQUEST_LIST->fd = fh;
   SSD_CACHE_REQUEST_LIST->offset = offset; 
   SSD_CACHE_REQUEST_LIST->buf = buf;
@@ -277,9 +278,10 @@ int MPI_File_write_cache(MPI_File fh,
   }
   
   ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
+  fsync(SSD_CACHE_FD);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
-  
+  fsync(SSD_CACHE_FD);
   SSD_CACHE_REQUEST_LIST->fd = fh;
   SSD_CACHE_REQUEST_LIST->buf = buf;
   SSD_CACHE_REQUEST_LIST->count = count;
@@ -316,6 +318,7 @@ int MPI_File_close_cache(MPI_File *fh) {
     pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
   } 
   close(SSD_CACHE_FD);
+  SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   remove(SSD_CACHE_FNAME);
   return PMPI_File_close(fh); 
 }
