@@ -22,7 +22,7 @@
 #include "timing.h"
 #include <cmath>
 using namespace std; 
-Timing tt; 
+Timing tt;
 #include <sstream>
 struct IOT
 {
@@ -44,7 +44,6 @@ int fail(char *filename, int linenumber) {
   return 0; /*Make compiler happy */
 }
 #define QUIT fail(__FILE__, __LINE__ )
-
 int main(int argc, char *argv[]) {
   int i=1;
   int dim=1024*1024*2;

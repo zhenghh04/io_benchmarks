@@ -21,13 +21,15 @@ int SSD_CACHE_FD;// file descripter of SSD
 char SSD_CACHE_FNAME[255]; // file name
 #ifdef THETA
 char SSD_CACHE_PATH[255]="/local/scratch/"; // we will change this into environmental variables
+double SSD_CACHE_MSPACE_TOTAL=100000000000.0; // the unit is GigaByte, I hardcoded here for now; 
+double SSD_CACHE_MSPACE_LEFT=100000000000.0;
 #else
 char SSD_CACHE_PATH[255]="./SSD/"; // we will change this into environmental variables
+double SSD_CACHE_MSPACE_TOTAL=100000000.0; // the unit is GigaByte, I hardcoded here for now; 
+double SSD_CACHE_MSPACE_LEFT=100000000.0;
 #endif
-int SSD_CACHE_MSPACE_TOTAL=1000000000; // the unit is GigaByte, I hardcoded here for now; 
-int SSD_CACHE_MSPACE_LEFT=1000000000;
-int SSD_CACHE_NUM_REQUEST=0;
 
+int SSD_CACHE_NUM_REQUEST=0;
 void *SSD_CACHE_MMAP;// mmap pointer
 int SSD_CACHE_OFFSET=0; // offset
 int SSD_CACHE_PPN=0; // node ppn 
@@ -45,13 +47,15 @@ pthread_mutex_t SSD_CACHE_MASTER_LOCK = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t SSD_CACHE_IO_LOCK = PTHREAD_MUTEX_INITIALIZER;
 pthread_mutex_t SSD_CACHE_OFFSET_LOCK = PTHREAD_MUTEX_INITIALIZER;
 
-/* create thread argument struct for thr_func() */
-
+/* create thread argument struct for thr_func() 
+    This is the function interface.
+*/
 #define WRITE 0
 #define WRITE_AT 1
 #define WRITE_AT_ALL 2
 
 typedef struct _thread_data_t {
+// we will use the link structure in C to build the list of I/O tasks
   MPI_File fd; 
   const void *buf;
   int count;
@@ -61,7 +65,8 @@ typedef struct _thread_data_t {
   MPI_Offset offset; 
   struct _thread_data_t *next; 
 } thread_data_t;
-
+/* SSD_CACHE_REQUEST_LIST is for storing the list of I/O tasks; SSD_CACHE_REQUEST is a pointer, pointing to the current task. This will be modified only by the I/O thread.
+*/
 thread_data_t *SSD_CACHE_REQUEST_LIST=NULL, *SSD_CACHE_REQUEST=NULL;
 
 /* thread function */
@@ -80,7 +85,9 @@ void *pthread_write_func(void *arg) {
       SSD_CACHE_NUM_REQUEST--;
       pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
     } if (SSD_CACHE_NUM_REQUEST == 0) {
+      pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
       pthread_cond_signal(&SSD_CACHE_MASTER_COND);
+      pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
       pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
       pthread_cond_wait(&SSD_CACHE_IO_COND, &SSD_CACHE_IO_LOCK); 
       pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
@@ -107,7 +114,6 @@ string itoa ( T Number)
 int MPI_File_open(MPI_Comm comm, const char *filename,
 		  int amode, MPI_Info info,
 		  MPI_File *fh) {
-
   srand(time(NULL));   // Initialization, should only be called once.
   int ierr = PMPI_File_open(comm, filename, amode, info, fh);
   MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &SSD_CACHE_COMM);
@@ -144,9 +150,13 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
   MPI_Type_size(datatype, &dt_size);
   size_t size = dt_size*count; 
   if (SSD_CACHE_MSPACE_LEFT < size) {
-    cout << "left not enought" << endl; 
+#ifdef SSD_CACHE_DEBUG
+    printf("SSD_CACHE_MSPACE_LEFT is not enough, waiting for previous I/O jobs to finish first\n");
+#endif
     while(SSD_CACHE_NUM_REQUEST>0)  {
+      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
       pthread_cond_signal(&SSD_CACHE_IO_COND); 
+      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
       pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
       pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
       pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
@@ -154,7 +164,6 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
     SSD_CACHE_OFFSET=0;
     SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   }
-
   ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
@@ -170,7 +179,9 @@ int MPI_File_write_at_all(MPI_File fh, MPI_Offset offset,
   pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   SSD_CACHE_NUM_REQUEST++;
   pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
+  pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
   pthread_cond_signal(&SSD_CACHE_IO_COND);// wake up I/O thread rightaway
+  pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
   SSD_CACHE_OFFSET += size;
   // compute how much space left
   SSD_CACHE_MSPACE_LEFT -= size*SSD_CACHE_PPN;
@@ -193,8 +204,13 @@ int MPI_File_write_at(MPI_File fh, MPI_Offset offset,
   MPI_Type_size(datatype, &dt_size);
   size_t size = dt_size*count;
   if (SSD_CACHE_MSPACE_LEFT < size) {
+#ifdef SSD_CACHE_DEBUG
+    printf("SSD_CACHE_MSPACE_LEFT is not enough, waiting for previous I/O jobs to finish first\n");
+#endif
     while(SSD_CACHE_NUM_REQUEST>0)  {
-      pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
+      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
+      pthread_cond_signal(&SSD_CACHE_IO_COND); 
+      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
       pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
       pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
       pthread_cond_signal(&SSD_CACHE_IO_COND); 
@@ -220,8 +236,9 @@ int MPI_File_write_at(MPI_File fh, MPI_Offset offset,
   pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   SSD_CACHE_NUM_REQUEST++;
   pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
+  pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
   pthread_cond_signal(&SSD_CACHE_IO_COND);// wake up I/O thread rightaway
-  
+  pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
   SSD_CACHE_OFFSET += size;
   SSD_CACHE_MSPACE_LEFT -= size*SSD_CACHE_PPN;
   // compute how much space left
@@ -245,11 +262,16 @@ int MPI_File_write(MPI_File fh,
   statvfs(SSD_CACHE_PATH, &st);
   SSD_CACHE_MSPACE_LEFT = st.f_bsize * st.f_bfree;
   if (SSD_CACHE_MSPACE_LEFT < size) {
+#ifdef SSD_CACHE_DEBUG
+    printf("SSD_CACHE_MSPACE_LEFT is not enough, waiting for previous I/O jobs to finish first\n");
+#endif
     while(SSD_CACHE_NUM_REQUEST>0)  {
+      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
+      pthread_cond_signal(&SSD_CACHE_IO_COND); 
+      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
       pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
       pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
       pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
-      pthread_cond_signal(&SSD_CACHE_IO_COND); 
     }
     SSD_CACHE_OFFSET=0;
   }
@@ -271,8 +293,9 @@ int MPI_File_write(MPI_File fh,
   SSD_CACHE_NUM_REQUEST++;
   pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
   
+  pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
   pthread_cond_signal(&SSD_CACHE_IO_COND);// wake up I/O thread rightaway
-  
+  pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
   SSD_CACHE_OFFSET += size;
   SSD_CACHE_MSPACE_LEFT -= size*SSD_CACHE_PPN;
   // compute how much space left
@@ -285,7 +308,9 @@ int MPI_File_close(MPI_File *fh) {
     printf("SSD_CACHE: MPI_File_close\n"); 
 #endif
   while (SSD_CACHE_NUM_REQUEST>0) {
-    pthread_cond_signal(&SSD_CACHE_IO_COND);
+    pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
+    pthread_cond_signal(&SSD_CACHE_IO_COND); 
+    pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
     pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
     pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
     pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
