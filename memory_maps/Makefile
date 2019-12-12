@@ -26,7 +26,7 @@ test_ssd_posix_io:
 	$(CC) $(CFLAGS) -o test_ssd_cache_io.x test_ssd_cache_io.cpp ssd_cache_io_pthread.cpp $(LIBS)
 
 memory_maps:
-	$(CC) $(CFLAGS) -o memory_maps.x memory_maps.cpp $(LIBS)
+	$(CC) $(CFLAGS) -o memory_maps.x memory_maps.cpp ssd_cache_io_pthread.cpp $(LIBS)
 
 test_ssd_posix:
 	$(CC) $(CFLAGS) -o test_ssd_posix.x test_ssd_posix.cpp $(LIBS)
