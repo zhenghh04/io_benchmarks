@@ -11,6 +11,7 @@ ifeq ($(HOST), zion)
 else
 	CC=mpicxx
 	HPCTW=$(HOME)/soft/hpctw/intel
+	CFLAGS += -DTHETA
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz
 endif
 # turn off HPCTW profiling
