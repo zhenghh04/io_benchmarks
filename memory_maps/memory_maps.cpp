@@ -362,7 +362,7 @@ int main(int argc, char *argv[]) {
 	tt.stop_clock("mmf2l_iwrite");
 	
 	tt.start_clock("mmf2l_Wait"); 
-	MPI_Waitall(1, &request, &status);
+	MPI_Wait(&request, &status);
 	tt.stop_clock("mmf2l_Wait");
       } else {
 	tt.start_clock("mmf2l_iwrite"); 
@@ -407,7 +407,7 @@ int main(int argc, char *argv[]) {
 	  MPI_File_iwrite_at(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
 	tt.stop_clock("mmf2l_iwrite");
 	tt.start_clock("mmf2l_Wait"); 
-	MPI_Waitall(1, &request, &status);
+	MPI_Wait(&request, &status);
 	tt.stop_clock("mmf2l_Wait");
       } else {
 	tt.start_clock("mmf2l_iwrite"); 

@@ -2,7 +2,7 @@
 #!/bin/sh
 HOST=$(shell hostname)
 HPCTW=1
-CFLAGS=-O3 -g -DSSD_CACHE_DEBUG
+CFLAGS=-O3 -g #-DSSD_CACHE_DEBUG
 ifeq ($(HOST), zion)
 	CC=g++
 	HPCTW=$(HOME)/opt/hpctw
@@ -20,8 +20,8 @@ ifeq ($(HPCTW), 0)
 endif
 
 #LIBS=$(HPCTW_LIBS) $(MPI_LIBS)
-LIBS=$(MPI_LIBS)
-#all: memory_maps test_ssd_posix
+LIBS=$(MPI_LIBS) -lpthread
+all: memory_maps test_ssd_posix
 
 test_ssd_posix_io:
 	$(CC) $(CFLAGS) -o test_ssd_cache_io.x test_ssd_cache_io.cpp ssd_cache_io_pthread.cpp $(LIBS)
