@@ -86,7 +86,7 @@ int main(int argc, char **argv) {
 #endif
   for (int i=0; i<niter; i++) {
     tt.start_clock("H5Dwrite"); 
-    hid_t status = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, plist_id, data);
+    hid_t status = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, plist_id, data); // write memory to file
     tt.stop_clock("H5Dwrite"); 
   }
   Timer T = tt["H5Dwrite"]; 
