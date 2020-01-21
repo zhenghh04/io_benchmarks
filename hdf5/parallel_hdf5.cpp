@@ -6,7 +6,7 @@
 #include <sys/time.h>
 #include <string.h>
 #include "timing.h"
-#include "ssd_cache_io_wrapper.h"
+#include "H5SSD.h"
 using namespace std; 
 int main(int argc, char **argv) {
   Timing tt; 
@@ -62,7 +62,12 @@ int main(int argc, char **argv) {
   char f[255];
   strcpy(f, scratch);
   strcat(f, "/parallel_file.h5");
+  MPI_Comm c2;
+  MPI_Info i2; 
+  H5Pget_fapl_mpio(plist_id, &c2, &i2);
+  cout << comm << " vs " << c2 << endl;  
   hid_t file_id = H5Fcreate(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+
   tt.stop_clock("H5Fcreate"); 
 
 #ifdef DEBUG
@@ -73,6 +78,9 @@ int main(int argc, char **argv) {
   tt.start_clock("H5Dcreate"); 
   hid_t dset_id = H5Dcreate(file_id, "dset", H5T_NATIVE_INT, memspace, H5P_DEFAULT,
 			    H5P_DEFAULT, H5P_DEFAULT);
+  hsize_t size; 
+  H5Dvlen_get_buf_size(dset_id, H5T_NATIVE_INT,  memspace,  &size );
+  cout << "size: " << size << endl; 
   tt.stop_clock("H5Dcreate"); 
 #ifdef DEBUG
   if (rank==0) cout << "Created dataspace: " << endl; 

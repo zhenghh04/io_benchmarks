@@ -2,11 +2,11 @@
 #!/bin/sh
 CC=cc
 CXX=CC #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
-CFLAGS=-O3 -DDEBUG
+CFLAGS=-O3 -DDEBUG -DTHETA -I$(HDF5_ROOT)/include
 #HPCTW=$(HOME)/soft/hpctw/intel
 HPCTW=/home/morozov/lib/
 #HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
-LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS)
+LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS) -pthread
 #CXX=mpiicc #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
 #CFLAGS=-O3 -DDEBUG -I$(HDF5_ROOT)/include
 #HPCTW=$(HOME)/soft/hpctw/intel
@@ -17,7 +17,7 @@ LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS)
 
 
 parallel_hdf5:
-	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp -I../memory_maps/ ../memory_maps/ssd_cache_io_pthread.cpp $(LIBS)
+	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp H5SSD.c $(LIBS)
 
 dset:
 	$(CXX) $(CFLAGS) -o create_dset.x create_dset.cpp $(LIBS)

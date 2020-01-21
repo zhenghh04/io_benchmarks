@@ -173,10 +173,10 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
   ::fsync(SSD_CACHE_FD);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
-  // Adding request ...
   SSD_CACHE_REQUEST_LIST->fd = fh;
   SSD_CACHE_REQUEST_LIST->offset = offset; 
-  SSD_CACHE_REQUEST_LIST->buf = buf;
+  SSD_CACHE_REQUEST_LIST->buf =  SSD_CACHE_MMAP;
+
   SSD_CACHE_REQUEST_LIST->count = count;
   SSD_CACHE_REQUEST_LIST->datatype = datatype;
   SSD_CACHE_REQUEST_LIST->func = WRITE_AT_ALL; 
