@@ -7,6 +7,13 @@ CFLAGS=-O3 -DDEBUG
 HPCTW=/home/morozov/lib/
 #HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
 LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS)
+#CXX=mpiicc #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
+#CFLAGS=-O3 -DDEBUG -I$(HDF5_ROOT)/include
+#HPCTW=$(HOME)/soft/hpctw/intel
+#HDF5_ROOT=/home/hzheng/Aurora_SDL/hdf5_quarterly_benchmarks/install/hdf5-ccio/
+#HPCTW=-Wl,-rpath,$(HOME)/mylibs -L$(HOME)/mylibs -lmpitrace
+#LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5 $(HPCTW) #-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
+#
 
 
 parallel_hdf5:

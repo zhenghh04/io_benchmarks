@@ -2,6 +2,7 @@
 #!/bin/sh
 #CC=mpicxx 
 CC=mpiicc
+#CC=mpicxx
 #CC=icc -I/home/hzheng/opt/mpich-3.3.1-ugni/include
 #HPCTW=/home/hzheng/opt/mpich-3.3.1-ugni/lib/libmpi.a
 CFLAGS=-O3

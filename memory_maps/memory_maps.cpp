@@ -21,6 +21,7 @@
 #include <unistd.h>
 #include "timing.h"
 #include "stat.h"
+#include "ssd_cache_io.h"
 using namespace std; 
 Timing tt; 
 #include <sstream>
@@ -361,7 +362,7 @@ int main(int argc, char *argv[]) {
 	tt.stop_clock("mmf2l_iwrite");
 	
 	tt.start_clock("mmf2l_Wait"); 
-	MPI_Waitall(1, &request, &status);
+	MPI_Wait(&request, &status);
 	tt.stop_clock("mmf2l_Wait");
       } else {
 	tt.start_clock("mmf2l_iwrite"); 
@@ -406,7 +407,7 @@ int main(int argc, char *argv[]) {
 	  MPI_File_iwrite_at(handle, rank*dim*sizeof(int), array2, dim, MPI_INT, &request);
 	tt.stop_clock("mmf2l_iwrite");
 	tt.start_clock("mmf2l_Wait"); 
-	MPI_Waitall(1, &request, &status);
+	MPI_Wait(&request, &status);
 	tt.stop_clock("mmf2l_Wait");
       } else {
 	tt.start_clock("mmf2l_iwrite"); 
@@ -444,8 +445,78 @@ int main(int argc, char *argv[]) {
     cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "---------------------------------------------" << endl;
   }
+
+    
+  if (filePerProc==1) {
+    for(int i=0; i<niter; i++) {
+      char f1[100]; 
+      strcpy(f1, lustre);
+      strcat(f1, "/file-mem2ssd2lustre.dat"); 
+      strcat(f1, itoa(rank).c_str()); 
+      tt.start_clock("m2s2l_open");
+      MPI_File_open_cache(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s2l_open");
+      tt.start_clock("m2s2l_rate");
+      tt.start_clock("m2s2l_write"); 
+      MPI_File_write_cache(handle, myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s2l_write"); 
+      tt.start_clock("m2s2l_sync"); 
+      //if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s2l_sync"); 
+      tt.stop_clock("m2s2l_rate");
+      tt.start_clock("m2s2l_close"); 
+      MPI_File_close_cache(&handle);
+      tt.stop_clock("m2s2l_close"); 
+    }
+  } else {
+    for(int i=0; i<niter; i++) {
+      char f1[100]; 
+      strcpy(f1, lustre);
+      strcat(f1, "/file-mem2ssd2lustre.dat"); 
+      tt.start_clock("m2s2l_open");
+      MPI_File_open_cache(comm, f1, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
+      tt.stop_clock("m2s2l_open");
+      tt.start_clock("m2s2l_rate");
+      tt.start_clock("m2s2l_write"); 
+      if (collective==1) 
+	MPI_File_write_at_all_cache(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      else
+	MPI_File_write_at_cache(handle, rank*dim*sizeof(int), myarray, dim, MPI_INT, MPI_STATUS_IGNORE);
+      tt.stop_clock("m2s2l_write"); 
+
+      tt.start_clock("m2s2l_sync"); 
+      //if (fsync) MPI_File_sync(handle);
+      tt.stop_clock("m2s2l_sync"); 
+      tt.stop_clock("m2s2l_rate");
+      
+      tt.start_clock("m2s2l_close"); 
+      MPI_File_close_cache(&handle);
+      tt.stop_clock("m2s2l_close"); 
+    }
+  }
+  M2L.open = tt["m2s2l_open"].t;
+  M2L.raw = tt["m2s2l_write"].t  +tt["m2s2l_sync"].t;
+  M2L.close = tt["m2s2l_close"].t;
+  M2L.rep = tt["m2s2l_open"].num_call;
+
+  
+  reduction_avg(tt["m2s2l_rate"].t_iter, niter, w, std);
+  w = w/1024/1024*size;
+  std = std/1024/1024*size;
+
+  if (rank==0) {
+    cout << "\n--------------- Memory->SSD->Lustre -----" << endl; 
+    cout << "     Open time (s): " << M2L.open/M2L.rep << endl; 
+    cout << "    Write time (s): " << M2L.raw/M2L.rep << endl;
+    cout << "    Close time (s): " << M2L.close/M2L.rep << endl;
+    cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
+    cout << "-----------------------------------------------" << endl; 
+  }
   delete [] myarray;
   delete [] myarrayssd;
+  //staging time
+  MPI_Barrier(MPI_COMM_WORLD);  
+    
 #ifdef DEBUG
   tt.PrintTiming(rank==0);
 #endif

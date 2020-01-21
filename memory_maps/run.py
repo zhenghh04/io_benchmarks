@@ -7,6 +7,9 @@
 import os
 import argparse
 import socket
+import time
+import numpy 
+import numpy.random as rnd
 hostname = socket.gethostname()
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("--dim", type=int, default=2097152)
@@ -33,7 +36,7 @@ parser.add_argument("--collective", default=1, type=int)
 args = parser.parse_args()
 exe=root+"memory_maps.x"
 options = vars(args)
-args.lustre=args.lustre + "/n%s.p%s.c%s.s%s/" %(args.num_nodes, args.ppn, args.lustreStripeCount, args.lustreStripeSize)
+args.lustre=args.lustre + "/%s%s"%(time.time(), rnd.randint(10000)) + "/n%s.p%s.c%s.s%s/" %(args.num_nodes, args.ppn, args.lustreStripeCount, args.lustreStripeSize)
 def cmkdir(d):
     if not os.path.exists(d):
         os.makedirs(d)
@@ -47,7 +50,7 @@ extra_opts=" --filePerProc %s --fsync %s --async %s --collective %s" %(args.file
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
     os.system("lfs getstripe %s"%args.lustre)
-    print("module load mpich-3.3.1-intel-2019; cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
+    print("module unload intel; module load intel-2019; module load mpich-3.3.1-intel-2019; cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
     os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
     print("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
@@ -80,5 +83,6 @@ run['mem->ssd'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1
 run['mem->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 run['mem->mmap'] =  [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 run['mmap->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
+run['mmap->ssd->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 with open(root+args.directory+"/" + args.output.split('.')[0]+'.json', 'w') as f:
     json.dump(run, f)
