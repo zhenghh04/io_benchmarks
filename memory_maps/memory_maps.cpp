@@ -58,7 +58,7 @@ int main(int argc, char *argv[]) {
   int i=0;
   int dim=1024*1024*2;
   int niter=1;
-  char *ssd = "/local/scratch/";
+  char *ssd = getenv("SSD_CACHE_PATH");
   char *lustre="./scratch/"; 
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
@@ -76,9 +76,6 @@ int main(int argc, char *argv[]) {
       dim = atoi(argv[i+1]); i+=1;
     } else if (strcmp(argv[i], "--niter") == 0) {
       niter = atoi(argv[i+1]); 
-      i+=1;
-    } else if (strcmp(argv[i], "--SSD") == 0) {
-      ssd = argv[i+1];
       i+=1;
     } else if (strcmp(argv[i], "--lustre") == 0) {
       lustre = argv[i+1];
@@ -220,7 +217,7 @@ int main(int argc, char *argv[]) {
     cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
-  /*
+
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 
@@ -319,6 +316,7 @@ int main(int argc, char *argv[]) {
     tt.stop_clock("m2mmf_rate");
     close(fd); 
     munmap(addr, size);
+    remove(f);
   }
   M2MMF.raw = tt["m2mmf_write"].t + tt["m2mmf_sync"].t;
   reduction_avg(tt["m2mmf_rate"].t_iter, niter, w, std);
@@ -349,7 +347,10 @@ int main(int argc, char *argv[]) {
       strcat(f, itoa(local_rank).c_str()); 
       strcat(f, ".dat-iter"); 
       strcat(f, itoa(i).c_str());
-      int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
+      int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
+      lseek(fd, size, SEEK_SET);
+      write(fd, "A", 1);
+
       void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
       int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
@@ -392,7 +393,9 @@ int main(int argc, char *argv[]) {
       strcat(f, itoa(local_rank).c_str()); 
       strcat(f, ".dat-iter"); 
       strcat(f, itoa(i).c_str()); 
-      int fd = open(f, O_RDWR, 0600); //6 = read+write for me!
+      int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
+      lseek(fd, size, SEEK_SET);
+      write(fd, "A", 1);
       void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
       int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
@@ -424,6 +427,7 @@ int main(int argc, char *argv[]) {
       MPI_File_close(&handle);
       tt.stop_clock("mmf2l_close");
       munmap(addr, size);
+      remove(f);
     }
   }
   MMF2L.open = tt["mmf2l_open"].t;
@@ -446,7 +450,6 @@ int main(int argc, char *argv[]) {
     cout << "---------------------------------------------" << endl;
   }
 
-  */
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 

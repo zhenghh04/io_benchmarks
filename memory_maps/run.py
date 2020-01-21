@@ -19,7 +19,8 @@ if hostname.find("theta")!=-1:
     parser.add_argument("--num_nodes", default=int(os.environ['COBALT_JOBSIZE']), type=int)
     parser.add_argument("--ppn", default=16, type=int)
 else:
-    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps/"
+    root="/home/hzheng/ExaHDF5/io_benchmarks/memory_maps/"
+#    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps/"
     parser.add_argument("--num_nodes", default=1, type=int)
     parser.add_argument("--SSD", default="SSD")
     parser.add_argument("--ppn", default=2, type=int)
@@ -29,7 +30,7 @@ parser.add_argument("--lustreStripeSize", default='8m')
 parser.add_argument("--lustreStripeCount", default=48, type=int)
 parser.add_argument("--filePerProc", type=int, default=0)
 parser.add_argument("--fsync",type=int, default=1)
-parser.add_argument("--async",type=int, default=1)
+parser.add_argument("--async",type=int, default=0)
 parser.add_argument("--directory", default="run/")
 parser.add_argument("--output", default="run.log")
 parser.add_argument("--collective", default=1, type=int)
@@ -46,6 +47,9 @@ if args.SSD!="/local/scratch/":
     cmkdir(args.SSD)
     if (args.SSD[0]!='/'):
         args.SSD = root+"/"+args.SSD
+if (args.lustre[0]!='/'):
+    args.lustre=root+"/"+args.lustre
+os.environ["SSD_CACHE_PATH"]=args.SSD+"/"
 extra_opts=" --filePerProc %s --fsync %s --async %s --collective %s" %(args.filePerProc, args.fsync, args.async, args.collective)
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
