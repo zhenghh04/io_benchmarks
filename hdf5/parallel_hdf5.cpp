@@ -7,7 +7,19 @@
 #include <string.h>
 #include "timing.h"
 #include "H5SSD.h"
-using namespace std; 
+using namespace std;
+hsize_t get_buf_size(hid_t mspace, hid_t tid) {
+  int n= H5Sget_simple_extent_ndims(mspace);
+  hsize_t *dim =	new hsize_t[n];
+  hsize_t *mdim = new hsize_t[n];
+  H5Sget_simple_extent_dims(mspace, dim, mdim);
+  hsize_t s = 1;
+  for(int i=0; i<n; i++) {
+    s=s*dim[i];
+  }
+  s = s*H5Tget_size(tid);
+  return s;
+}
 int main(int argc, char **argv) {
   Timing tt; 
   // Assuming that the dataset is a two dimensional array of 8x5 dimension;
@@ -44,7 +56,7 @@ int main(int argc, char **argv) {
   if (rank==0) {
     cout << "Dim: " << gdims[0] << "x" << gdims[1] << endl; 
     cout << "scratch: " << scratch << endl; 
-    cout << "buffer: " << float(d1*d2)/1024/1024*8 << " MB" << endl; 
+    cout << "buffer: " << float(d1*d2)/1024/1024*sizeof(int) << " MB" << endl; 
   }
   ldims[0] = gdims[0]/nproc;
   ldims[1] = gdims[1];
@@ -66,7 +78,7 @@ int main(int argc, char **argv) {
   MPI_Info i2; 
   H5Pget_fapl_mpio(plist_id, &c2, &i2);
   cout << comm << " vs " << c2 << endl;  
-  hid_t file_id = H5Fcreate(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+  hid_t file_id = H5Fcreate_cache(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
 
   tt.stop_clock("H5Fcreate"); 
 
@@ -75,12 +87,15 @@ int main(int argc, char **argv) {
 #endif
   // create dataspace
   hid_t memspace = H5Screate_simple(2, ldims, NULL);
-  tt.start_clock("H5Dcreate"); 
-  hid_t dset_id = H5Dcreate(file_id, "dset", H5T_NATIVE_INT, memspace, H5P_DEFAULT,
+  tt.start_clock("H5Dcreate");
+  hid_t dt = H5Tcopy(H5T_NATIVE_INT);  
+  hid_t dset_id = H5Dcreate(file_id, "dset", dt, memspace, H5P_DEFAULT,
 			    H5P_DEFAULT, H5P_DEFAULT);
-  hsize_t size; 
-  H5Dvlen_get_buf_size(dset_id, H5T_NATIVE_INT,  memspace,  &size );
-  cout << "size: " << size << endl; 
+  cout << "space: " << H5Sget_simple_extent_ndims(memspace) << endl;
+  
+  hsize_t size;
+  //  H5Dvlen_get_buf_size(dset_id, dt,  memspace,  &size );
+  //  cout << "size: " << size << endl; 
   tt.stop_clock("H5Dcreate"); 
 #ifdef DEBUG
   if (rank==0) cout << "Created dataspace: " << endl; 
@@ -104,9 +119,11 @@ int main(int argc, char **argv) {
 #ifdef DEBUG
   if (rank==0) cout << "H5Dwrite ... " << endl; 
 #endif
+  size = get_buf_size(memspace, dt);
+  cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
   for (int i=0; i<niter; i++) {
     tt.start_clock("H5Dwrite"); 
-    hid_t status = H5Dwrite(dset_id, H5T_NATIVE_INT, H5S_ALL, H5S_ALL, dxf_id, data); // write memory to file
+    hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, H5S_ALL, dxf_id, data); // write memory to file
     //    H5Fflush(file_id, H5F_SCOPE_LOCAL);
     tt.stop_clock("H5Dwrite"); 
   }
@@ -118,11 +135,12 @@ int main(int argc, char **argv) {
   H5Dclose(dset_id);
   //H5Sclose(filespace);
   H5Sclose(memspace);
-  tt.start_clock("H5Dclose"); 
-  H5Fclose(file_id);
-  tt.stop_clock("H5Dclose"); 
+  tt.start_clock("H5Fclose"); 
+  H5Fclose_cache(file_id);
+  tt.stop_clock("H5Fclose"); 
   bool master = (rank==0); 
   tt.PrintTiming(master); 
   MPI_Finalize();
   return 0;
 }
+
