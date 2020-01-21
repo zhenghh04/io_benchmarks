@@ -71,28 +71,28 @@ thread_data_t *SSD_CACHE_REQUEST_LIST=NULL, *SSD_CACHE_REQUEST=NULL;
 
 /* thread function */
 void *pthread_write_func(void *arg) {
+  pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   while (SSD_CACHE_NUM_REQUEST >=0) {
     if (SSD_CACHE_NUM_REQUEST >0) {
+      printf("executing pthread\n"); 
       thread_data_t *data = SSD_CACHE_REQUEST;
       if (data->func == WRITE) 
-        PMPI_File_write(data->fd, data->buf, data->count, data->datatype, data->status);
+        MPI_File_write(data->fd, data->buf, data->count, data->datatype, data->status);
       else if (data->func == WRITE_AT)
-        PMPI_File_write_at(data->fd, data->offset, data->buf, data->count, data->datatype, data->status);
+        MPI_File_write_at(data->fd, data->offset, data->buf, data->count, data->datatype, data->status);
       else if (data->func == WRITE_AT_ALL)
-        PMPI_File_write_at_all(data->fd, data->offset, data->buf, data->count, data->datatype, data->status);
-      pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
+        MPI_File_write_at_all(data->fd, data->offset, data->buf, data->count, data->datatype, data->status);
+      printf("done with writing\n"); 
       SSD_CACHE_REQUEST=SSD_CACHE_REQUEST->next; 
       SSD_CACHE_NUM_REQUEST--;
-      pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
     } if (SSD_CACHE_NUM_REQUEST == 0) {
-      pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
       pthread_cond_signal(&SSD_CACHE_MASTER_COND);
-      pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
-      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
-      pthread_cond_wait(&SSD_CACHE_IO_COND, &SSD_CACHE_IO_LOCK); 
-      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
+      if (SSD_CACHE_RANK==0) printf("IO wait\n");
+      pthread_cond_wait(&SSD_CACHE_IO_COND, &SSD_CACHE_REQUEST_LOCK);
+      if (SSD_CACHE_RANK==0) printf("IO awake\n");
     }
   }
+  pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
   return NULL; 
 }
   
@@ -153,14 +153,11 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
 #ifdef SSD_CACHE_DEBUG
     printf("SSD_CACHE_MSPACE_LEFT is not enough, waiting for previous I/O jobs to finish first\n");
 #endif
+    pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
     while(SSD_CACHE_NUM_REQUEST>0)  {
-      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
-      pthread_cond_signal(&SSD_CACHE_IO_COND); 
-      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
-      pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
-      pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
-      pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
-    }
+      pthread_cond_signal(&SSD_CACHE_IO_COND);
+      pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_REQUEST_LOCK);     }
+    pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
     SSD_CACHE_OFFSET=0;
     SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   }
@@ -168,6 +165,7 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
   fsync(SSD_CACHE_FD);
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
+  // Adding request ...
   SSD_CACHE_REQUEST_LIST->fd = fh;
   SSD_CACHE_REQUEST_LIST->offset = offset; 
   SSD_CACHE_REQUEST_LIST->buf = buf;
@@ -177,12 +175,17 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
   SSD_CACHE_REQUEST_LIST->status = status; 
   SSD_CACHE_REQUEST_LIST->next = (thread_data_t*) malloc(sizeof(thread_data_t)); 
   SSD_CACHE_REQUEST_LIST = SSD_CACHE_REQUEST_LIST->next; 
+  if (SSD_CACHE_RANK==0) printf("SSD_CACHE_NUM_REQUEST: %d before\n", SSD_CACHE_NUM_REQUEST);
   pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   SSD_CACHE_NUM_REQUEST++;
+  if (SSD_CACHE_RANK==0) printf("SSD_CACHE_NUM_REQUEST: %d after\n", SSD_CACHE_NUM_REQUEST);
+  if (SSD_CACHE_RANK==0) printf("master wakening up I/O threads\n");
+  pthread_cond_signal(&SSD_CACHE_IO_COND);// wake up I/O thread rightawayn
+  if (SSD_CACHE_RANK==0) printf("done\n");
   pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
-  pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
-  pthread_cond_signal(&SSD_CACHE_IO_COND);// wake up I/O thread rightaway
-  pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
+
+
+
   SSD_CACHE_OFFSET += size;
   // compute how much space left
   SSD_CACHE_MSPACE_LEFT -= size*SSD_CACHE_PPN;
@@ -266,14 +269,12 @@ int MPI_File_write_cache(MPI_File fh,
 #ifdef SSD_CACHE_DEBUG
     printf("SSD_CACHE_MSPACE_LEFT is not enough, waiting for previous I/O jobs to finish first\n");
 #endif
+    pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
     while(SSD_CACHE_NUM_REQUEST>0)  {
-      pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
       pthread_cond_signal(&SSD_CACHE_IO_COND); 
-      pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
-      pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
-      pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
-      pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
+      pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_REQUEST_LOCK); 
     }
+    pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
     SSD_CACHE_OFFSET=0;
   }
   
@@ -309,14 +310,14 @@ int MPI_File_close_cache(MPI_File *fh) {
   if (SSD_CACHE_RANK==0)
     printf("SSD_CACHE: MPI_File_close\n"); 
 #endif
-  while (SSD_CACHE_NUM_REQUEST>0) {
-    pthread_mutex_lock(&SSD_CACHE_IO_LOCK);
+  //  pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
+  while(SSD_CACHE_NUM_REQUEST>0)  {
+    printf("SSD_CACHE: %d", SSD_CACHE_NUM_REQUEST);
     pthread_cond_signal(&SSD_CACHE_IO_COND); 
-    pthread_mutex_unlock(&SSD_CACHE_IO_LOCK);
-    pthread_mutex_lock(&SSD_CACHE_MASTER_LOCK);
-    pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_MASTER_LOCK); 
-    pthread_mutex_unlock(&SSD_CACHE_MASTER_LOCK);
-  } 
+    printf("SSD_CACHE: %d", SSD_CACHE_NUM_REQUEST);
+    pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_REQUEST_LOCK); 
+  }
+  //  pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
   close(SSD_CACHE_FD);
   SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   remove(SSD_CACHE_FNAME);

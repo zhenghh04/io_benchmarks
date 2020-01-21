@@ -2,25 +2,27 @@
 #!/bin/sh
 HOST=$(shell hostname)
 HPCTW=1
-CFLAGS=-O3 -g #-DSSD_CACHE_DEBUG
+CFLAGS=-O3 -g -DSSD_CACHE_DEBUG
 ifeq ($(HOST), zion)
 	CC=g++
 	HPCTW=$(HOME)/opt/hpctw
-	MPI_LIBS=-Wl,-rpath,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi
+	MPI_LIBS=-Wl,-rpath,$(HOME)/opt/openmpi-4.0.0-clang/lib -L$(HOME)/opt/openmpi-4.0.0-clang/lib -lmpi -lpthread
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
+	LIBS=$(MPI_LIBS) 
 else
-	CC=mpicxx
+	CC=CC
 	HPCTW=$(HOME)/soft/hpctw/intel
 	CFLAGS += -DTHETA
-	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz
+	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -pthread
+	LIBS=$(MPI_LIBS) -pthread
 endif
 # turn off HPCTW profiling
 ifeq ($(HPCTW), 0)
-	HPCTW_LIBS=
+	HPCTW_LIBS=	
 endif
 
 #LIBS=$(HPCTW_LIBS) $(MPI_LIBS)
-LIBS=$(MPI_LIBS) -lpthread
+
 all: memory_maps test_ssd_posix
 
 test_ssd_posix_io:

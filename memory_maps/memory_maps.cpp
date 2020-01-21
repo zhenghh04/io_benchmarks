@@ -220,7 +220,7 @@ int main(int argc, char *argv[]) {
     cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
-  
+  /*
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 
@@ -446,7 +446,7 @@ int main(int argc, char *argv[]) {
     cout << "---------------------------------------------" << endl;
   }
 
-    
+  */
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 

@@ -7,7 +7,8 @@
 #include <unistd.h>
 #include <iostream>
 #include "timing.h"
-#include "pthread_barrier.h"
+#include <string.h>
+//#include "pthread_barrier.h"
 
 #define NUM_THREADS 2
 using namespace std;
@@ -36,7 +37,7 @@ thread_data_t *REQUEST_LIST=NULL, *REQUEST_HEAD=NULL;
 int num_request = 0;
 
 void *thr_func(void *arg) {
-  pthread_mutex_unlock(&count_lock);
+  pthread_mutex_lock(&count_lock);
   while(num_request >= 0) {
     if (num_request>0) {
       thread_data_t *data = REQUEST_HEAD;
@@ -47,10 +48,10 @@ void *thr_func(void *arg) {
     } 
     if (num_request==0) {
       pthread_cond_signal(&cond0);
-      pthread_cond_wait(&cond1, &cond_lock); 
+      pthread_cond_wait(&cond1, &count_lock); 
     }
   }
-  pthread_mutex_lock(&count_lock);
+  pthread_mutex_unlock(&count_lock);
   return NULL; 
 }
 
@@ -64,6 +65,7 @@ int pwrite_thread(int fd, const void *buf, size_t nbyte, size_t offset) {
   REQUEST_LIST->offset = offset; 
   REQUEST_LIST->next = (thread_data_t*) malloc(sizeof(thread_data_t)); 
   REQUEST_LIST = REQUEST_LIST->next; 
+  sleep(1);
   pthread_mutex_lock(&count_lock);
   num_request++;
   rc = pthread_cond_signal(&cond1);
@@ -81,12 +83,12 @@ int OPEN(const char *pathname, int flags, mode_t mode) {
 }
 
 int CLOSE(int fd) {
-  pthread_mutex_lock(&cond_lock);
+  pthread_mutex_lock(&count_lock);
   while (num_request>0) {
     rc = pthread_cond_signal(&cond1);
-    pthread_cond_wait(&cond0, &cond_lock); 
+    pthread_cond_wait(&cond0, &count_lock); 
   }
-  pthread_mutex_unlock(&cond_lock);
+  pthread_mutex_unlock(&count_lock);
   close(fd);
   return 0; 
 }
