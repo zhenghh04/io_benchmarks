@@ -1,10 +1,12 @@
 #Makefile
 #!/bin/sh
-CC=mpicc
-CXX=mpicxx #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
-CFLAGS=-O3 -DDEBUG
+CC=mpiicc
+CXX=mpiicc #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
+CFLAGS=-O3 -DDEBUG -I$(HDF5_ROOT)/include
 HPCTW=$(HOME)/soft/hpctw/intel
-LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5 #-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
+HDF5_ROOT=/home/hzheng/Aurora_SDL/hdf5_quarterly_benchmarks/install/hdf5-ccio/
+HPCTW=-Wl,-rpath,$(HOME)/mylibs -L$(HOME)/mylibs -lmpitrace
+LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5 $(HPCTW) #-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
 
 
 parallel_hdf5:

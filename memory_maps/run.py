@@ -8,6 +8,7 @@ import os
 import argparse
 import socket
 import time
+import numpy 
 import numpy.random as rnd
 hostname = socket.gethostname()
 parser = argparse.ArgumentParser(description='Process some integers.')
