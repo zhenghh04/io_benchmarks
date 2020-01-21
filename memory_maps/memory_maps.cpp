@@ -316,7 +316,6 @@ int main(int argc, char *argv[]) {
     tt.stop_clock("m2mmf_rate");
     close(fd); 
     munmap(addr, size);
-    remove(f);
   }
   M2MMF.raw = tt["m2mmf_write"].t + tt["m2mmf_sync"].t;
   reduction_avg(tt["m2mmf_rate"].t_iter, niter, w, std);
@@ -332,7 +331,7 @@ int main(int argc, char *argv[]) {
   printf("SSD files: %s (Rank-%d)", f, rank);
 #endif
 
-
+  /*
   MPI_Request request;
   
   if (filePerProc==1) {
@@ -347,11 +346,9 @@ int main(int argc, char *argv[]) {
       strcat(f, itoa(local_rank).c_str()); 
       strcat(f, ".dat-iter"); 
       strcat(f, itoa(i).c_str());
-      int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
-      lseek(fd, size, SEEK_SET);
-      write(fd, "A", 1);
-
-      void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      int fd = open(f, O_RDONLY, 0600); //6 = read+write for me!
+      void *addr = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
+      msync(addr, size, MS_SYNC);
       int *array2 = (int*) addr;
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(comm, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
@@ -386,18 +383,16 @@ int main(int argc, char *argv[]) {
       char f2[100]; 
       strcpy(f2, lustre); 
       strcat(f2, "/file-mmf2lustre.dat");
-
       char f[100]; 
       strcpy(f, ssd); 
       strcat(f, "/file-"); 
       strcat(f, itoa(local_rank).c_str()); 
       strcat(f, ".dat-iter"); 
       strcat(f, itoa(i).c_str()); 
-      int fd = open(f, O_RDWR | O_CREAT | O_TRUNC, 0600); //6 = read+write for me!
-      lseek(fd, size, SEEK_SET);
-      write(fd, "A", 1);
-      void *addr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+      int fd = open(f, O_RDONLY, 0600); //6 = read+write for me!
+      void *addr = mmap(NULL, size, PROT_READ, MAP_SHARED, fd, 0);
       int *array2 = (int*) addr;
+      msync(addr, size, MS_SYNC);
       tt.start_clock("mmf2l_open"); 
       MPI_File_open(MPI_COMM_WORLD, f2, MPI_MODE_WRONLY | MPI_MODE_CREATE | MPI_MODE_DELETE_ON_CLOSE, info, &handle);
       tt.stop_clock("mmf2l_open");
@@ -427,7 +422,6 @@ int main(int argc, char *argv[]) {
       MPI_File_close(&handle);
       tt.stop_clock("mmf2l_close");
       munmap(addr, size);
-      remove(f);
     }
   }
   MMF2L.open = tt["mmf2l_open"].t;
@@ -449,7 +443,7 @@ int main(int argc, char *argv[]) {
     cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "---------------------------------------------" << endl;
   }
-
+  */
   if (filePerProc==1) {
     for(int i=0; i<niter; i++) {
       char f1[100]; 
@@ -517,9 +511,7 @@ int main(int argc, char *argv[]) {
   }
   delete [] myarray;
   delete [] myarrayssd;
-  //staging time
   MPI_Barrier(MPI_COMM_WORLD);  
-    
 #ifdef DEBUG
   tt.PrintTiming(rank==0);
 #endif

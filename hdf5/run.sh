@@ -5,7 +5,7 @@ export HDF5_CCIO_DEBUG='yes'
 export HDF5_CCIO_WR='yes'
 export HDF5_CCIO_CB_SIZE=1048576
 export HDF5_CCIO_DEBUG='yes'
-mpirun -n 4 ./parallel_hdf5.x --dim 4 10485760
+aprun -n 32 ./parallel_hdf5.x --dim 1024 2048 
 #aprun -n 128 -j 2 ./parallel_hdf5.x --dim 128 $1
 
 

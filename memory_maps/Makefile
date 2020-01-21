@@ -2,7 +2,7 @@
 #!/bin/sh
 HOST=$(shell hostname)
 HPCTW=1
-CFLAGS=-O3 -g -DSSD_CACHE_DEBUG
+CFLAGS=-O3 -g #-DSSD_CACHE_DEBUG
 ifeq ($(HOST), zion)
 	CC=g++
 	HPCTW=$(HOME)/opt/hpctw
@@ -10,9 +10,9 @@ ifeq ($(HOST), zion)
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 	LIBS=$(MPI_LIBS) 
 else
-	CC=mpicc
+	CC=CC
 	HPCTW=$(HOME)/soft/hpctw/intel
-	#CFLAGS += -DTHETA
+	CFLAGS += -DTHETA
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -pthread
 	LIBS=$(MPI_LIBS) -pthread
 endif

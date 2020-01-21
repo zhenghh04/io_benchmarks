@@ -54,7 +54,7 @@ extra_opts=" --filePerProc %s --fsync %s --async %s --collective %s" %(args.file
 if hostname.find("theta")!=-1:
     os.system("lfs setstripe -c %s -S %s %s"%(args.lustreStripeCount, args.lustreStripeSize, args.lustre))
     os.system("lfs getstripe %s"%args.lustre)
-    print("module unload intel; module load intel-2019; module load mpich-3.3.1-intel-2019; cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
+    print("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
     os.system("cd %s; aprun -n %s -N %s %s --SSD %s --lustre %s --niter %s %s |& tee %s; cd - " %(args.directory, args.num_nodes*args.ppn, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, root + args.directory + "/"+args.output))
 else:
     print("cd %s; mpirun -np %s %s --SSD %s --lustre %s --niter %s %s | tee %s; cd -" %(args.directory, args.ppn, exe, args.SSD, args.lustre, args.niter, extra_opts, args.output))
@@ -86,7 +86,6 @@ run['SSD'] = [ [float(d.split()[0]), float(d.split()[2])] for d in read_to_str(f
 run['mem->ssd'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 run['mem->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 run['mem->mmap'] =  [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
-run['mmap->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 run['mmap->ssd->lustre'] = [float(d) for d in read_to_str(fin, "Write rate").split(":")[1].split()[0::2]]
 with open(root+args.directory+"/" + args.output.split('.')[0]+'.json', 'w') as f:
     json.dump(run, f)

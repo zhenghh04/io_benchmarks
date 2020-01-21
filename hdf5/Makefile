@@ -1,7 +1,7 @@
 #Makefile
 #!/bin/sh
-CC=mpicc
-CXX=mpicxx #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
+CC=cc
+CXX=CC #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
 CFLAGS=-O3 -DDEBUG
 #HPCTW=$(HOME)/soft/hpctw/intel
 HPCTW=/home/morozov/lib/
@@ -17,7 +17,7 @@ LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS)
 
 
 parallel_hdf5:
-	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp $(LIBS)
+	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp -I../memory_maps/ ../memory_maps/ssd_cache_io_pthread.cpp $(LIBS)
 
 dset:
 	$(CXX) $(CFLAGS) -o create_dset.x create_dset.cpp $(LIBS)

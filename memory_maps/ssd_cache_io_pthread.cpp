@@ -169,10 +169,8 @@ int MPI_File_write_at_all_cache(MPI_File fh, MPI_Offset offset,
     SSD_CACHE_OFFSET=0;
     SSD_CACHE_MSPACE_LEFT = SSD_CACHE_MSPACE_TOTAL; 
   }
-  printf("Write SSD data\n"); 
   ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET); 
   ::fsync(SSD_CACHE_FD);
-  printf("Done Write SSD data\n"); 
   SSD_CACHE_MMAP = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, SSD_CACHE_FD, SSD_CACHE_OFFSET);
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   // Adding request ...
