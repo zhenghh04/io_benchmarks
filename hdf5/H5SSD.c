@@ -89,7 +89,6 @@ void *H5Dwrite_pthread_func(void *arg) {
 }
 
 
-
 int rc = pthread_create(&SSD_CACHE_PTHREAD, NULL, H5Dwrite_pthread_func, NULL);
 
 int set_SSD_PATH(void) {
@@ -137,7 +136,7 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
 
 
 herr_t
-H5Dwrite_cache(hid_t dset_id, hid_t mem_type_id, hid_t mem_space_id,
+H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 	 hid_t file_space_id, hid_t dxpl_id, const void *buf) {
   
 #ifdef SSD_CACHE_DEBUG
@@ -145,7 +144,8 @@ H5Dwrite_cache(hid_t dset_id, hid_t mem_type_id, hid_t mem_space_id,
     printf("SSD_CACHE: MPI_File_write_at_all\n"); 
 #endif
   hsize_t size; 
-  size = get_buf_size(H5Dget_space(dset_id), mem_type_id);
+  size = 8*1024*1024;
+  ///size = get_buf_size(H5Dget_space(dset_id), mem_type_id);
   printf("buffer size: %llu\n", size/1024/1024); 
   if (SSD_CACHE_MSPACE_LEFT < size) {
 #ifdef SSD_CACHE_DEBUG
@@ -163,7 +163,7 @@ H5Dwrite_cache(hid_t dset_id, hid_t mem_type_id, hid_t mem_space_id,
   ::pwrite(SSD_CACHE_FD, (char*)buf, size, SSD_CACHE_OFFSET); 
   ::fsync(SSD_CACHE_FD);
   // add task to the list
-  SSD_CACHE_REQUEST_LIST->dataset_id = dset_id; 
+  SSD_CACHE_REQUEST_LIST->dataset_id = dataset_id; 
   SSD_CACHE_REQUEST_LIST->mem_type_id = mem_type_id;
   SSD_CACHE_REQUEST_LIST->mem_space_id = mem_space_id;
   SSD_CACHE_REQUEST_LIST->file_space_id = file_space_id;

@@ -227,7 +227,7 @@ int MPI_File_write_at_cache(MPI_File fh, MPI_Offset offset,
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   SSD_CACHE_REQUEST_LIST->fd = fh;
   SSD_CACHE_REQUEST_LIST->offset = offset; 
-  SSD_CACHE_REQUEST_LIST->buf = buf;
+  SSD_CACHE_REQUEST_LIST->buf = SSD_CACHE_MMAP;
   SSD_CACHE_REQUEST_LIST->count = count;
   SSD_CACHE_REQUEST_LIST->datatype = datatype;
   SSD_CACHE_REQUEST_LIST->func = WRITE_AT; 
@@ -280,7 +280,7 @@ int MPI_File_write_cache(MPI_File fh,
   msync(SSD_CACHE_MMAP, size, MS_SYNC); 
   fsync(SSD_CACHE_FD);
   SSD_CACHE_REQUEST_LIST->fd = fh;
-  SSD_CACHE_REQUEST_LIST->buf = buf;
+  SSD_CACHE_REQUEST_LIST->buf = SSD_CACHE_MMAP;
   SSD_CACHE_REQUEST_LIST->count = count;
   SSD_CACHE_REQUEST_LIST->datatype = datatype;
   SSD_CACHE_REQUEST_LIST->func = WRITE; 
