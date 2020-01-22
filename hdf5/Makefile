@@ -15,7 +15,8 @@ LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5  $(HPCTW_LIBS) -pthre
 #LIBS=-Wl,-rpath,$(HDF5_ROOT)/lib -L$(HDF5_ROOT)/lib -lhdf5 $(HPCTW) #-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -liberty -lbfd -lz
 #
 
-
+test_dset_id:
+	$(CXX) $(CFLAGS) -o test_dset_id.x test_dset_id.c $(LIBS)
 parallel_hdf5:
 	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp H5SSD.c $(LIBS)
 
