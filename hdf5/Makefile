@@ -1,7 +1,7 @@
 #Makefile
 #!/bin/sh
 CC=cc
-CXX=CC -DTHETA #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
+CXX=CC -dynamic -DTHETA #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
 CFLAGS=-O3 -DSSD_CACHE_DEBUG -DDEBUG -I$(HDF5_ROOT)/include
 #HPCTW=$(HOME)/opt/hpctw
 #HPCTW=/home/morozov/lib/

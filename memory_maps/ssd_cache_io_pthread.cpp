@@ -74,6 +74,7 @@ void *pthread_write_func(void *arg) {
   pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   while (SSD_CACHE_NUM_REQUEST >=0) {
     if (SSD_CACHE_NUM_REQUEST >0) {
+      sleep(1);
       thread_data_t *data = SSD_CACHE_REQUEST;
       if (data->func == WRITE) 
         PMPI_File_write(data->fd, data->buf, data->count, data->datatype, data->status);

@@ -40,6 +40,7 @@ void *thr_func(void *arg) {
   pthread_mutex_lock(&count_lock);
   while(num_request >= 0) {
     if (num_request>0) {
+      sleep(1);
       thread_data_t *data = REQUEST_HEAD;
       pwrite(data->fd, data->buf, data->nbyte, data->offset);
       fsync(data->fd);
@@ -65,7 +66,6 @@ int pwrite_thread(int fd, const void *buf, size_t nbyte, size_t offset) {
   REQUEST_LIST->offset = offset; 
   REQUEST_LIST->next = (thread_data_t*) malloc(sizeof(thread_data_t)); 
   REQUEST_LIST = REQUEST_LIST->next; 
-  sleep(1);
   pthread_mutex_lock(&count_lock);
   num_request++;
   rc = pthread_cond_signal(&cond1);

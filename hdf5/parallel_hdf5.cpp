@@ -117,7 +117,7 @@ int main(int argc, char **argv) {
   //H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, NULL);
   // write dataset;
 #ifdef DEBUG
-  if (rank==0) cout << "H5Dwrite ... " << endl; 
+  if (rank==0) cout << "H5Dwrite ...\n" << endl; 
 #endif
   size = get_buf_size(memspace, dt);
   cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
@@ -128,7 +128,7 @@ int main(int argc, char **argv) {
     tt.stop_clock("H5Dwrite"); 
   }
   Timer T = tt["H5Dwrite"]; 
-  if (rank==0) printf("Write rate: %f MB/s", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
+  if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
   H5Pclose(dxf_id);
   delete [] data;
   H5Pclose(plist_id);

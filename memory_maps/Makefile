@@ -10,7 +10,7 @@ ifeq ($(HOST), zion)
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 	LIBS=$(MPI_LIBS) 
 else
-	CC=CC
+	CC=CC -dynamic
 	HPCTW=$(HOME)/soft/hpctw/intel
 	CFLAGS += -DTHETA
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -pthread
