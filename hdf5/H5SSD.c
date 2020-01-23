@@ -33,7 +33,7 @@ H5SSD = {
 	 .request_list = NULL,
 	 .current_request = NULL,
 };
-hid_t ddset; 
+hid_t ddset, dx; 
 int setH5SSD() {
 #ifdef THETA
   strcpy(H5SSD.path, "/local/scratch/");
@@ -48,6 +48,23 @@ int setH5SSD() {
 }
 
 /* for storing the request list */
+void check_pthread_data(thread_data_t *pt) {
+  printf("********************************************\n");
+  printf("***values: dset-%lld, mtype-%lld, mspace-%lld, fspace-%lld, xfer-%lld\n",
+	 pt->dataset_id,
+	 pt->mem_type_id,
+	 pt->mem_space_id,
+	 pt->file_space_id,
+	 pt->xfer_plist_id);
+  printf("***  type: dset-%d, mtype-%d, mspace-%d, fspace-%d, xfer-%d\n",
+	 H5Iget_type(pt->dataset_id),
+	 H5Iget_type(pt->mem_type_id),
+	 H5Iget_type(pt->mem_space_id),
+	 H5Iget_type(pt->file_space_id),
+	 H5Iget_type(pt->xfer_plist_id));
+  printf("********************************************\n\n");
+}
+
 
 void *H5Dwrite_pthread_func(void *arg) {
   pthread_mutex_lock(&H5SSD.request_lock);
@@ -56,8 +73,10 @@ void *H5Dwrite_pthread_func(void *arg) {
       thread_data_t *data = H5SSD.current_request; 
 #ifdef SSD_CACHE_DEBUG
       if (H5SSD.rank ==0) {
+
 	printf("Request#: %d of %d\n", data->id, H5SSD.num_request);
-	printf("IO: *dataset_id: %lld - %d\n", data->dataset_id, H5Iget_type(data->dataset_id));
+	printf("IO: *dataset_id: %lld - %d - %d\n", data->dataset_id, H5Iget_type(data->dataset_id), H5Iget_type(dx));
+	check_pthread_data(data);
       }
 #endif      
       H5Dwrite(data->dataset_id, data->mem_type_id, 
@@ -139,13 +158,14 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   pwrite(H5SSD.fd, (char*)buf, size, H5SSD.offset);
   fsync(H5SSD.fd);
   // add task to the list
-  ddset = dataset_id; 
   H5SSD.request_list->dataset_id = dataset_id; 
   H5SSD.request_list->mem_type_id = mem_type_id;
   H5SSD.request_list->mem_space_id = mem_space_id;
   H5SSD.request_list->file_space_id =file_space_id;
   H5SSD.request_list->xfer_plist_id = dxpl_id;
-  // map the buf
+  dx = dxpl_id;
+  check_pthread_data(H5SSD.request_list);
+  printf("dxpl_id: %lld, %d,%d\n", dxpl_id, H5Iget_type(dxpl_id), H5Iget_type(dx));
   H5SSD.mmap_ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, H5SSD.fd, H5SSD.offset);
   msync(H5SSD.mmap_ptr, size, MS_SYNC);
   H5SSD.request_list->buf = H5SSD.mmap_ptr;
@@ -153,7 +173,6 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list->next->id = H5SSD.request_list->id + 1;
 
   thread_data_t *data = H5SSD.request_list;   
-  printf("*dataset_id: %lld (%d) - %lld | (%d) -%d-%d-%d\n", data->dataset_id, data->id, dataset_id, H5Iget_type(data->dataset_id), H5Iget_type(dataset_id), H5Iget_type(H5SSD.head->dataset_id), H5Iget_type(ddset));
   H5SSD.request_list = H5SSD.request_list->next;  
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request++;

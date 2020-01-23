@@ -14,6 +14,8 @@ typedef struct _thread_data_t {
 
 } thread_data_t;
 
+void check_pthread_data(thread_data_t *pt); 
+
 typedef struct _SSD_CACHE_IO {
   int fd;
   char fname[255];
