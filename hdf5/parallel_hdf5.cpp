@@ -149,11 +149,12 @@ int main(int argc, char **argv) {
   cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
   for (int i=0; i<niter; i++) {
     hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, H5S_ALL, dxf_id, data); // write memory to file
-    addItem(dset_id);
+    //printf("main: %lld, %d", dset_id, H5Iget_type(dset_id));
+    //    addItem(dset_id);
     //    H5Fflush(file_id, H5F_SCOPE_LOCAL);
   }
   //checkItem();
-  //  printf("H5SSD: %lld, %d", H5SSD.head->dataset_id, H5Iget_type(H5SSD.head->dataset_id));
+  
   Timer T = tt["H5Dwrite"]; 
   if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
   H5Pclose(dxf_id);
