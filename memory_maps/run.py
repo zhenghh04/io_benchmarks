@@ -19,8 +19,8 @@ if hostname.find("theta")!=-1:
     parser.add_argument("--num_nodes", default=int(os.environ['COBALT_JOBSIZE']), type=int)
     parser.add_argument("--ppn", default=16, type=int)
 else:
-    root="/home/hzheng/ExaHDF5/io_benchmarks/memory_maps/"
-#    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps/"
+#    root="/home/hzheng/ExaHDF5/io_benchmarks/memory_maps/"
+    root="/Users/zhenghh/Documents/Research/ExaHDF5/io_benchmarks/memory_maps/"
     parser.add_argument("--num_nodes", default=1, type=int)
     parser.add_argument("--SSD", default="SSD")
     parser.add_argument("--ppn", default=2, type=int)

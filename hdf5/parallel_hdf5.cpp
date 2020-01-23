@@ -8,6 +8,33 @@
 #include "timing.h"
 #include "H5SSD.h"
 using namespace std;
+typedef struct _dset_list {
+  hid_t dset_id;
+  int id; 
+  struct _dset_list *next; 
+} dset_list; 
+dset_list *dsl=NULL;
+dset_list *head=NULL; 
+void addItem(hid_t dset_id) {
+  if (dsl==NULL) {
+    dsl = (dset_list*) malloc(sizeof(dset_list));
+    head = dsl;
+    dsl->id = 0;
+  }
+  dsl->dset_id = dset_id; 
+  dsl->next = (dset_list*) malloc(sizeof(dset_list));
+  dsl->next->id = dsl->id + 1; 
+  dsl = dsl->next; 
+} 
+
+void checkItem() {
+  dset_list *data=head; 
+  while (data->next!=NULL) {
+    printf("check dset_id: %lld - %d (%d)\n", data->dset_id, H5Iget_type(data->dset_id), data->id);
+    data = data->next; 
+  }
+}
+
 hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   int n= H5Sget_simple_extent_ndims(mspace);
   hsize_t *dim =	new hsize_t[n];
@@ -20,6 +47,7 @@ hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   s = s*H5Tget_size(tid);
   return s;
 }
+extern SSD_CACHE_IO H5SSD;
 int main(int argc, char **argv) {
   Timing tt; 
   // Assuming that the dataset is a two dimensional array of 8x5 dimension;
@@ -74,10 +102,7 @@ int main(int argc, char **argv) {
   char f[255];
   strcpy(f, scratch);
   strcat(f, "/parallel_file.h5");
-  MPI_Comm c2;
-  MPI_Info i2; 
-  H5Pget_fapl_mpio(plist_id, &c2, &i2);
-  cout << comm << " vs " << c2 << endl;  
+  
   hid_t file_id = H5Fcreate_cache(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
 
   tt.stop_clock("H5Fcreate"); 
@@ -91,6 +116,7 @@ int main(int argc, char **argv) {
   hid_t dt = H5Tcopy(H5T_NATIVE_INT);  
   hid_t dset_id = H5Dcreate(file_id, "dset", dt, memspace, H5P_DEFAULT,
 			    H5P_DEFAULT, H5P_DEFAULT);
+  printf("Dataset ID: %llu - %d\n", dset_id, H5Iget_type(dset_id));
   cout << "space: " << H5Sget_simple_extent_ndims(memspace) << endl;
   
   hsize_t size;
@@ -122,11 +148,12 @@ int main(int argc, char **argv) {
   size = get_buf_size(memspace, dt);
   cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
   for (int i=0; i<niter; i++) {
-    tt.start_clock("H5Dwrite"); 
     hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, H5S_ALL, dxf_id, data); // write memory to file
+    addItem(dset_id);
     //    H5Fflush(file_id, H5F_SCOPE_LOCAL);
-    tt.stop_clock("H5Dwrite"); 
   }
+  //checkItem();
+  //  printf("H5SSD: %lld, %d", H5SSD.head->dataset_id, H5Iget_type(H5SSD.head->dataset_id));
   Timer T = tt["H5Dwrite"]; 
   if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
   H5Pclose(dxf_id);

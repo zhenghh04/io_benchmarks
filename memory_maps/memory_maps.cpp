@@ -509,11 +509,12 @@ int main(int argc, char *argv[]) {
     cout << "Write rate (MiB/s): " << w << " +/- " << std << endl; 
     cout << "-----------------------------------------------" << endl; 
   }
+  MPI_Barrier(MPI_COMM_WORLD);  
   delete [] myarray;
   delete [] myarrayssd;
-  MPI_Barrier(MPI_COMM_WORLD);  
+  
 #ifdef DEBUG
-  tt.PrintTiming(rank==0);
+  //  tt.PrintTiming(rank==0);
 #endif
   MPI_Finalize();
   return 0;
