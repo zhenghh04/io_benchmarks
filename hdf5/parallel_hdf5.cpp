@@ -7,6 +7,19 @@
 #include <string.h>
 #include "timing.h"
 #include "H5SSD.h"
+#include <stdlib.h>
+#include <pthread.h>
+#include <sys/stat.h>
+#include <sys/mman.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include "mpi.h"
+#include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
+#include <stdio.h>
+#include <sys/statvfs.h>
+#include <stdlib.h>
 using namespace std;
 typedef struct _dset_list {
   hid_t dset_id;
@@ -139,8 +152,9 @@ int main(int argc, char **argv) {
 
   H5Pset_dxpl_mpio(dxf_id, H5FD_MPIO_COLLECTIVE);
   // define local memory space
-  hid_t filepace = H5Screate_simple(2, ldims, NULL);
-  //H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, NULL);
+  hsize_t ggdims[2] = {gdims[0]*niter, gdims[1]};
+  hid_t filespace = H5Screate_simple(2, ggdims, NULL);
+
   // write dataset;
 #ifdef DEBUG
   if (rank==0) cout << "H5Dwrite ...\n" << endl; 
@@ -148,7 +162,10 @@ int main(int argc, char **argv) {
   size = get_buf_size(memspace, dt);
   cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
   for (int i=0; i<niter; i++) {
-    hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, H5S_ALL, dxf_id, data); // write memory to file
+    offset[0]= i*gdims[0] + rank*ldims[0];
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, NULL);
+    hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
+    printf("Iter -%d\n", i);
     //printf("main: %lld, %d", dset_id, H5Iget_type(dset_id));
     //    addItem(dset_id);
     //    H5Fflush(file_id, H5F_SCOPE_LOCAL);
@@ -157,17 +174,23 @@ int main(int argc, char **argv) {
   
   Timer T = tt["H5Dwrite"]; 
   if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
+  printf("closing file\n");
+  sleep(10);
+  H5Fclose_cache(file_id);
+
   H5Pclose(dxf_id);
-  delete [] data;
   H5Pclose(plist_id);
+  printf("closing dataset\n");
   H5Dclose(dset_id);
-  //H5Sclose(filespace);
+  printf("close dataset\n");
+  H5Sclose(filespace);
   H5Sclose(memspace);
   tt.start_clock("H5Fclose"); 
-  H5Fclose_cache(file_id);
+
   tt.stop_clock("H5Fclose"); 
   bool master = (rank==0); 
   tt.PrintTiming(master); 
+  delete [] data;
   MPI_Finalize();
   return 0;
 }

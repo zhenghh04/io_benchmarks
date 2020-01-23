@@ -71,18 +71,12 @@ void *H5Dwrite_pthread_func(void *arg) {
   while (H5SSD.num_request>=0) {
     if (H5SSD.num_request >0) {
       thread_data_t *data = H5SSD.current_request; 
-#ifdef SSD_CACHE_DEBUG
-      if (H5SSD.rank ==0) {
-
-	printf("Request#: %d of %d\n", data->id, H5SSD.num_request);
-	printf("IO: *dataset_id: %lld - %d - %d\n", data->dataset_id, H5Iget_type(data->dataset_id), H5Iget_type(dx));
-	check_pthread_data(data);
-      }
-#endif      
+      printf("==Start H5Dwrite\n"); 
+      sleep(2);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
-      printf("finished H5Dwrite\n"); 
+      printf("==Finished H5Dwrite\n"); 
       H5SSD.current_request=H5SSD.current_request->next;
       H5SSD.num_request--; 
     } if (H5SSD.num_request == 0) {
@@ -91,7 +85,6 @@ void *H5Dwrite_pthread_func(void *arg) {
     }
   }
   pthread_mutex_unlock(&H5SSD.request_lock);
-  pthread_exit(NULL);
   return NULL; 
 }
 int rc = pthread_create(&H5SSD.pthread, NULL, H5Dwrite_pthread_func, NULL);
@@ -140,8 +133,6 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 #endif
   hsize_t size; 
   size = get_buf_size(H5Dget_space(dataset_id), mem_type_id);
-  //size = 16*1024*1024;
-  printf("buffer size: %llu\n", size/1024/1024); 
   if (H5SSD.mspace_left < size) {
 #ifdef SSD_CACHE_DEBUG
     printf("H5SSD.mspace_left is not enough, waiting for previous I/O jobs to finish first\n");
@@ -155,7 +146,7 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
     H5SSD.offset=0;
     H5SSD.mspace_left = H5SSD.mspace_total;
   }
-  pwrite(H5SSD.fd, (char*)buf, size, H5SSD.offset);
+  int err = pwrite(H5SSD.fd, (char*)buf, size, H5SSD.offset);
   fsync(H5SSD.fd);
   // add task to the list
   H5SSD.request_list->dataset_id = dataset_id; 
@@ -174,36 +165,25 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 
   thread_data_t *data = H5SSD.request_list;   
   H5SSD.request_list = H5SSD.request_list->next;  
-  pthread_mutex_lock(&H5SSD.request_lock);
+  //pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request++;
-  pthread_mutex_unlock(&H5SSD.request_lock);
+  //pthread_mutex_unlock(&H5SSD.request_lock);
   pthread_cond_signal(&H5SSD.io_cond);// wake up I/O thread rightawayx
-  printf("Number of request: %d\n", H5SSD.num_request); 
-
   H5SSD.offset += size;
-  // compute how much space left
   H5SSD.mspace_left -= size*H5SSD.ppn;
-  return 0; 
+  printf("Number of request: %d\n", H5SSD.num_request); 
+  return err; 
 }
-
-
 
 herr_t H5Fclose_cache( hid_t file_id ) {
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
     printf("SSD_CACHE: H5Fclose\n"); 
 #endif
-
-  thread_data_t *data = H5SSD.head;
-  printf("dset_id -head : %lld (%d)\n", H5SSD.head->dataset_id, H5Iget_type(H5SSD.head->dataset_id)); 
-  while(data->next != NULL) {
-    printf("dset_id: %lld (%d) - %d\n", data->dataset_id, data->id, H5Iget_type(ddset)); 
-    data = data->next; 
-  }
   pthread_mutex_lock(&H5SSD.request_lock);
   while(H5SSD.num_request>0)  {
-    pthread_cond_signal(&H5SSD.io_cond);
     pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
+    pthread_cond_signal(&H5SSD.io_cond);
   }
   pthread_mutex_unlock(&H5SSD.request_lock);
   close(H5SSD.fd);
