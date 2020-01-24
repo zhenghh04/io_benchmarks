@@ -52,14 +52,12 @@ H5SSD = {
   Function for set up the local storage path and capacity.
  */
 int setH5SSD() {
-#ifdef THETA
-  strcpy(H5SSD.path, "/local/scratch/");
+  if (getenv("SSD_CACHE_PATH")) {
+    strcpy(H5SSD.path, getenv("SSD_CACHE_PATH"));
+  } else {
+    strcpy(H5SSD.path, "/local/scratch/");
+  }
   H5SSD.mspace_total = 137438953472;
-#else
-  char *ssd=getenv("SSD_CACHE_PATH");
-  strcpy(H5SSD.path, ssd);
-  H5SSD.mspace_total = 137438953472;
-#endif
   H5SSD.mspace_left = H5SSD.mspace_total;
   return 0; 
 }
@@ -128,6 +126,7 @@ void *H5Dwrite_pthread_func(void *arg) {
 	check_pthread_data(data);
       }
 #endif
+      sleep(1);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
@@ -170,13 +169,13 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   sprintf(rnd, "%d", rand());
   strcat(H5SSD.fname, rnd);
   strcat(H5SSD.fname, "-"); 
-  sprintf(rnd, "%d", H5SSD.local_rank);
+  sprintf(rnd, "%d", H5SSD.rank);
   strcat(H5SSD.fname, rnd);
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0) {
     printf("SSD_CACHE: H5Fcreate\n"); 
   }
-  printf("SSD file: %s\n", H5SSD.fname);
+  printf("SSD file: %s (rank %d)\n", H5SSD.fname, H5SSD.rank);
 #endif
   H5SSD.fd = open(H5SSD.fname,  O_RDWR | O_CREAT | O_TRUNC, 0600);
   H5SSD.request_list = (thread_data_t*) malloc(sizeof(thread_data_t)); 
@@ -225,7 +224,6 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list->mem_space_id = mem_space_id;
   H5SSD.request_list->file_space_id =file_space_id;
   H5SSD.request_list->xfer_plist_id = dxpl_id;
-  dx = dxpl_id;
   H5SSD.request_list->buf = mmap(NULL, size, PROT_READ, MAP_SHARED, H5SSD.fd, H5SSD.offset);
   msync(H5SSD.request_list->buf, size, MS_SYNC);
   fsync(H5SSD.fd);

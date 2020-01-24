@@ -47,8 +47,8 @@ int main(int argc, char **argv) {
       i+=1;
     }
   }
+  hsize_t ldims[2] = {d1, d2};
 
-  hsize_t gdims[2] = {d1, d2};
   hsize_t oned = d1*d2;
   MPI_Comm comm = MPI_COMM_WORLD;
   MPI_Info info = MPI_INFO_NULL;
@@ -58,17 +58,17 @@ int main(int argc, char **argv) {
   MPI_Comm_rank(comm, &rank);
   //printf("     MPI: I am rank %d of %d \n", rank, nproc);
   // find local array dimension and offset; 
+  hsize_t gdims[2] = {d1*nproc, d2};
   if (rank==0) {
-    printf("     Dim: %llu x %llu\n",  gdims[0], gdims[1]);
-    printf(" scratch: %s\n", scratch); 
+    printf("=============================================\n");
+    printf(" Buf dim: %llu x %llu\n",  ldims[0], ldims[1]);
+    printf("Buf size: %f MB\n", float(d1*d2)/1024/1024*sizeof(int));
+    printf(" Scratch: %s\n", scratch); 
     printf("   nproc: %d\n", nproc);
+    printf("=============================================\n");
     if (cache) printf("** using SSD as a cache **\n"); 
   }
-  hsize_t ldims[2] = {d1/nproc, d2};
   hsize_t offset[2] = {0, 0};
-  if(gdims[0]%ldims[0]>0)
-    if (rank==nproc-1)
-      ldims[0] += gdims[0]%ldims[0]; 
   // setup file access property list for mpio
   hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, comm, info);
@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
   double avg = 0.0; 
   double std = 0.0; 
   stat(&tt["H5Dwrite"].t_iter[0], niter, avg, std, 'i');
-  if (rank==0) printf("   Write rate: %f +/- %f MB/s\n", size*avg/niter/1024/1024, size/niter*std/1024/1024);
+  if (rank==0) printf("  Write rate: %f +/- %f MB/s\n", size*avg/niter/1024/1024, size/niter*std/1024/1024);
   tt.start_clock("H5close");
   if (cache) {
     H5Pclose_cache(dxf_id);
