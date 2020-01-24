@@ -62,7 +62,7 @@ void check_pthread_data(thread_data_t *pt) {
 	 H5Iget_type(pt->mem_space_id),
 	 H5Iget_type(pt->file_space_id),
 	 H5Iget_type(pt->xfer_plist_id));
-  printf("********************************************\n\n");
+  printf("********************************************\n");
 }
 
 
@@ -75,6 +75,7 @@ void *H5Dwrite_pthread_func(void *arg) {
       printf("== IO start H5Dwrite\n");
       check_pthread_data(data);
 #endif
+      sleep(2);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
@@ -166,12 +167,12 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list->next->id = H5SSD.request_list->id + 1;
   thread_data_t *data = H5SSD.request_list;   
   H5SSD.request_list = H5SSD.request_list->next;  
-  pthread_mutex_lock(&H5SSD.request_lock);
+  //  pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request++;
 #ifdef SSD_CACHE_DEBUG
   printf("Number of request: %d\n", H5SSD.num_request);
 #endif
-  pthread_mutex_unlock(&H5SSD.request_lock);
+  //  pthread_mutex_unlock(&H5SSD.request_lock);
   pthread_cond_signal(&H5SSD.io_cond);// wake up I/O thread rightawayx
   H5SSD.offset += size;
   H5SSD.mspace_left -= size*H5SSD.ppn;
