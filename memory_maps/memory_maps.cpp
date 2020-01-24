@@ -485,7 +485,6 @@ int main(int argc, char *argv[]) {
       //if (fsync) MPI_File_sync(handle);
       tt.stop_clock("m2s2l_sync"); 
       tt.stop_clock("m2s2l_rate");
-      
       tt.start_clock("m2s2l_close"); 
       MPI_File_close_cache(&handle);
       tt.stop_clock("m2s2l_close"); 

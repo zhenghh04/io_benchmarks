@@ -73,7 +73,6 @@ void *pthread_write_func(void *arg) {
 
   while (SSD_CACHE_NUM_REQUEST >=0) {
     if (SSD_CACHE_NUM_REQUEST >0) {
-      sleep(1);
       thread_data_t *data = SSD_CACHE_REQUEST;
       if (data->func == WRITE) 
         PMPI_File_write(data->fd, data->buf, data->count, data->datatype, data->status);
@@ -92,7 +91,6 @@ void *pthread_write_func(void *arg) {
       pthread_mutex_unlock(&SSD_CACHE_REQUEST_LOCK);
     }
   }
-  printf("IO thread exit\n"); 
   pthread_exit(NULL);
   return NULL; 
 }
@@ -126,10 +124,7 @@ int set_SSD_PATH(void) {
 int MPI_File_open_cache(MPI_Comm comm, const char *filename,
 		  int amode, MPI_Info info,
 		  MPI_File *fh) {
-  printf("creating thread\n");
-
   int rc = pthread_create(&SSD_CACHE_PTHREAD, NULL, pthread_write_func, NULL);
-  printf("done creating\n"); 
   srand(time(NULL));   // Initialization, should only be called once.
   int ierr = PMPI_File_open(comm, filename, amode, info, fh);
   MPI_Comm_split_type(comm, MPI_COMM_TYPE_SHARED, 0, MPI_INFO_NULL, &SSD_CACHE_COMM);
@@ -313,7 +308,6 @@ int MPI_File_close_cache(MPI_File *fh) {
 #endif
   pthread_mutex_lock(&SSD_CACHE_REQUEST_LOCK);
   while(SSD_CACHE_NUM_REQUEST>0)  {
-    printf("wait\n"); 
     pthread_cond_signal(&SSD_CACHE_IO_COND); 
     pthread_cond_wait(&SSD_CACHE_MASTER_COND, &SSD_CACHE_REQUEST_LOCK); 
   }

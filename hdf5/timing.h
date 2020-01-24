@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 #include <stdio.h>
+#include <sys/time.h>
+#define MAXITER 10000
 using namespace std; 
 double get_time_diff_secs (struct timeval& start, struct timeval& end)
 {
@@ -15,6 +17,7 @@ struct Timer {
 public:
   string name; 
   double t; 
+  double t_iter[MAXITER]; 
   struct timeval start_t,  end_t; 
   int num_call; 
   bool open; 
@@ -49,7 +52,8 @@ class Timing {
     } else {
       if (T[ind].open) {
 	gettimeofday(&T[ind].end_t,0); 
-	T[ind].t += get_time_diff_secs(T[ind].start_t, T[ind].end_t);
+	T[ind].t_iter[T[ind].num_call-1] = get_time_diff_secs(T[ind].start_t, T[ind].end_t);
+	T[ind].t += T[ind].t_iter[T[ind].num_call-1];
 	T[ind].open = false; 
 	return; 
       } else {
@@ -76,11 +80,11 @@ class Timing {
   }
   int PrintTiming(bool master=true) {
     if (master) {
-      cout << "\n********************** Timing Information *********************" << endl; 
+      cout << "\n***************** Timing Information *****************************" << endl;
       for(int i = 0; i<T.size(); i++) {
-	printf("*   %-15s:       %4.8f sec        ( %-3d call  )\n", T[i].name.c_str(), T[i].t, T[i].num_call); 
+	printf("*   %15s:      %5.8f sec        ( %-3d call  )   *\n", T[i].name.c_str(), T[i].t, T[i].num_call); 
       }
-      cout << "***************************************************************\n" << endl; 
+      cout << "******************************************************************\n" << endl; 
     }
     return 0; 
   }
