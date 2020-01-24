@@ -165,29 +165,15 @@ int main(int argc, char **argv) {
     offset[0]= i*gdims[0] + rank*ldims[0];
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, NULL);
     hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
-    printf("Iter -%d\n", i);
-    //printf("main: %lld, %d", dset_id, H5Iget_type(dset_id));
-    //    addItem(dset_id);
-    //    H5Fflush(file_id, H5F_SCOPE_LOCAL);
   }
-  //checkItem();
-  
   Timer T = tt["H5Dwrite"]; 
   if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
-  printf("closing file\n");
-  sleep(10);
+  H5Pclose_cache(dxf_id);
+  H5Pclose_cache(plist_id);
+  H5Dclose_cache(dset_id);
+  H5Sclose_cache(filespace);
+  H5Sclose_cache(memspace);
   H5Fclose_cache(file_id);
-
-  H5Pclose(dxf_id);
-  H5Pclose(plist_id);
-  printf("closing dataset\n");
-  H5Dclose(dset_id);
-  printf("close dataset\n");
-  H5Sclose(filespace);
-  H5Sclose(memspace);
-  tt.start_clock("H5Fclose"); 
-
-  tt.stop_clock("H5Fclose"); 
   bool master = (rank==0); 
   tt.PrintTiming(master); 
   delete [] data;

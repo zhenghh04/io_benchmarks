@@ -70,13 +70,17 @@ void *H5Dwrite_pthread_func(void *arg) {
   pthread_mutex_lock(&H5SSD.request_lock);
   while (H5SSD.num_request>=0) {
     if (H5SSD.num_request >0) {
-      thread_data_t *data = H5SSD.current_request; 
-      printf("==Start H5Dwrite\n"); 
-      sleep(2);
+      thread_data_t *data = H5SSD.current_request;
+#ifdef SSD_CACHE_DEBUG
+      printf("== IO start H5Dwrite\n");
+      check_pthread_data(data);
+#endif
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
-      printf("==Finished H5Dwrite\n"); 
+#ifdef SSD_CACHE_DEBUG
+      printf("== Finished H5Dwrite\n");
+#endif       
       H5SSD.current_request=H5SSD.current_request->next;
       H5SSD.num_request--; 
     } if (H5SSD.num_request == 0) {
@@ -155,24 +159,31 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list->file_space_id =file_space_id;
   H5SSD.request_list->xfer_plist_id = dxpl_id;
   dx = dxpl_id;
-  check_pthread_data(H5SSD.request_list);
-  printf("dxpl_id: %lld, %d,%d\n", dxpl_id, H5Iget_type(dxpl_id), H5Iget_type(dx));
   H5SSD.mmap_ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, H5SSD.fd, H5SSD.offset);
   msync(H5SSD.mmap_ptr, size, MS_SYNC);
   H5SSD.request_list->buf = H5SSD.mmap_ptr;
   H5SSD.request_list->next = (thread_data_t*) malloc(sizeof(thread_data_t));
   H5SSD.request_list->next->id = H5SSD.request_list->id + 1;
-
   thread_data_t *data = H5SSD.request_list;   
   H5SSD.request_list = H5SSD.request_list->next;  
-  //pthread_mutex_lock(&H5SSD.request_lock);
+  pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request++;
-  //pthread_mutex_unlock(&H5SSD.request_lock);
+#ifdef SSD_CACHE_DEBUG
+  printf("Number of request: %d\n", H5SSD.num_request);
+#endif
+  pthread_mutex_unlock(&H5SSD.request_lock);
   pthread_cond_signal(&H5SSD.io_cond);// wake up I/O thread rightawayx
   H5SSD.offset += size;
   H5SSD.mspace_left -= size*H5SSD.ppn;
-  printf("Number of request: %d\n", H5SSD.num_request); 
   return err; 
+}
+void H5Fwait() {
+  pthread_mutex_lock(&H5SSD.request_lock);
+  while(H5SSD.num_request>0)  {
+    pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
+    pthread_cond_signal(&H5SSD.io_cond);
+  }
+  pthread_mutex_unlock(&H5SSD.request_lock);
 }
 
 herr_t H5Fclose_cache( hid_t file_id ) {
@@ -180,14 +191,25 @@ herr_t H5Fclose_cache( hid_t file_id ) {
   if (H5SSD.rank==0)
     printf("SSD_CACHE: H5Fclose\n"); 
 #endif
-  pthread_mutex_lock(&H5SSD.request_lock);
-  while(H5SSD.num_request>0)  {
-    pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
-    pthread_cond_signal(&H5SSD.io_cond);
-  }
-  pthread_mutex_unlock(&H5SSD.request_lock);
+  H5Fwait();
   close(H5SSD.fd);
   H5SSD.mspace_left = H5SSD.mspace_total;
   remove(H5SSD.fname);
   return H5Fclose(file_id);
+}
+
+
+herr_t H5Pclose_cache(hid_t dxf_id) {
+  H5Fwait();
+  return H5Pclose(dxf_id);
+}
+
+herr_t H5Dclose_cache(hid_t dset_id) {
+  H5Fwait();
+  return H5Dclose(dset_id);
+}
+
+herr_t H5Sclose_cache(hid_t filespace) {
+  H5Fwait();
+  return H5Sclose(filespace);
 }

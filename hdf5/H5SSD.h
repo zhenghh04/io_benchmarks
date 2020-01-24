@@ -42,4 +42,8 @@ herr_t H5Fclose_cache( hid_t file_id );
 herr_t H5Dwrite_cache(hid_t dset_id, hid_t mem_type_id, 
 		      hid_t mem_space_id, hid_t file_space_id, 
 		      hid_t dxpl_id, const void *buf);
+herr_t H5Dclose_cache( hid_t id);
+herr_t H5Pclose_cache( hid_t id);
+herr_t H5Sclose_cache( hid_t id);
+void H5Fwait();
 #endif
