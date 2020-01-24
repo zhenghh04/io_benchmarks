@@ -126,7 +126,6 @@ void *H5Dwrite_pthread_func(void *arg) {
 	check_pthread_data(data);
       }
 #endif
-      sleep(2);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
@@ -236,7 +235,7 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list = H5SSD.request_list->next;
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request++;
-  //  pthread_cond_signal(&H5SSD.io_cond);// wake up I/O thread rightawayx
+  pthread_cond_signal(&H5SSD.io_cond);// wake up I/O thread rightawayx
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0) 
     printf("Number of request: %d\n", H5SSD.num_request);
@@ -245,7 +244,6 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   hsize_t pagesize = sysconf(_SC_PAGE_SIZE);  
   H5SSD.offset += (int(size/pagesize)+1)*pagesize;
   H5SSD.mspace_left = H5SSD.mspace_total - H5SSD.offset*H5SSD.ppn;
-  test_mmap_buf();
   return err; 
 }
 void H5Fwait() {
