@@ -1,5 +1,4 @@
 #include "hdf5.h"
-#include <iostream>
 #include "mpi.h"
 #include "stdlib.h"
 #include "stdio.h"
@@ -20,47 +19,6 @@
 #include <stdio.h>
 #include <sys/statvfs.h>
 #include <stdlib.h>
-using namespace std;
-typedef struct _dset_list {
-  hid_t dset_id;
-  int id; 
-  struct _dset_list *next; 
-} dset_list; 
-dset_list *dsl=NULL;
-dset_list *head=NULL; 
-void addItem(hid_t dset_id) {
-  if (dsl==NULL) {
-    dsl = (dset_list*) malloc(sizeof(dset_list));
-    head = dsl;
-    dsl->id = 0;
-  }
-  dsl->dset_id = dset_id; 
-  dsl->next = (dset_list*) malloc(sizeof(dset_list));
-  dsl->next->id = dsl->id + 1; 
-  dsl = dsl->next; 
-} 
-
-void checkItem() {
-  dset_list *data=head; 
-  while (data->next!=NULL) {
-    printf("check dset_id: %lld - %d (%d)\n", data->dset_id, H5Iget_type(data->dset_id), data->id);
-    data = data->next; 
-  }
-}
-
-hsize_t get_buf_size(hid_t mspace, hid_t tid) {
-  int n= H5Sget_simple_extent_ndims(mspace);
-  hsize_t *dim =	new hsize_t[n];
-  hsize_t *mdim = new hsize_t[n];
-  H5Sget_simple_extent_dims(mspace, dim, mdim);
-  hsize_t s = 1;
-  for(int i=0; i<n; i++) {
-    s=s*dim[i];
-  }
-  s = s*H5Tget_size(tid);
-  return s;
-}
-extern SSD_CACHE_IO H5SSD;
 int main(int argc, char **argv) {
   Timing tt; 
   // Assuming that the dataset is a two dimensional array of 8x5 dimension;
@@ -90,93 +48,85 @@ int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   MPI_Comm_size(comm, &nproc);
   MPI_Comm_rank(comm, &rank);
-  cout << "I am rank " << rank << " of " << nproc << endl; 
+  printf("       MPI: I am rank %d of %d \n", rank, nproc);
   // find local array dimension and offset; 
-  hsize_t ldims[2];
-  hsize_t offset[2];
   if (rank==0) {
-    cout << "Dim: " << gdims[0] << "x" << gdims[1] << endl; 
-    cout << "scratch: " << scratch << endl; 
-    cout << "buffer: " << float(d1*d2)/1024/1024*sizeof(int) << " MB" << endl; 
+    printf("     Dim: %llu x %llu\n",  gdims[0], gdims[1]);
+    printf(" scratch: %s\n", scratch); 
   }
-  ldims[0] = gdims[0]/nproc;
-  ldims[1] = gdims[1];
-  offset[0] = rank*ldims[0];
-  offset[1] = 0;
+  hsize_t ldims[2] = {d1/nproc, d2};
+  hsize_t offset[2] = {0, 0};
   if(gdims[0]%ldims[0]>0)
     if (rank==nproc-1)
       ldims[0] += gdims[0]%ldims[0]; 
   // setup file access property list for mpio
   hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
   H5Pset_fapl_mpio(plist_id, comm, info);
-  // Create file
 
-  tt.start_clock("H5Fcreate"); 
+
+
   char f[255];
   strcpy(f, scratch);
   strcat(f, "/parallel_file.h5");
-  
-  hid_t file_id = H5Fcreate_cache(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
 
+  tt.start_clock("H5Fcreate");   
+  hid_t file_id = H5Fcreate_cache(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   tt.stop_clock("H5Fcreate"); 
 
-#ifdef DEBUG
-  if (rank==0) cout << "Created file: " << endl; 
-#endif
-  // create dataspace
+  // create memory space
   hid_t memspace = H5Screate_simple(2, ldims, NULL);
-  tt.start_clock("H5Dcreate");
-  hid_t dt = H5Tcopy(H5T_NATIVE_INT);  
-  hid_t dset_id = H5Dcreate(file_id, "dset", dt, memspace, H5P_DEFAULT,
-			    H5P_DEFAULT, H5P_DEFAULT);
-  printf("Dataset ID: %llu - %d\n", dset_id, H5Iget_type(dset_id));
-  cout << "space: " << H5Sget_simple_extent_ndims(memspace) << endl;
-  
-  hsize_t size;
-  //  H5Dvlen_get_buf_size(dset_id, dt,  memspace,  &size );
-  //  cout << "size: " << size << endl; 
-  tt.stop_clock("H5Dcreate"); 
-#ifdef DEBUG
-  if (rank==0) cout << "Created dataspace: " << endl; 
-#endif
 
   // define local data
   int* data = new int[ldims[0]*ldims[1]];
-  tt.start_clock("array"); 
-  for(int i=0; i<ldims[0]*ldims[1]; i++)
-    data[i] = rank + 10;
-  tt.stop_clock("array"); 
-  if (rank==0) printf("Memory rate: %f MB/s\n", d1*d2*sizeof(int)/tt["array"].t/1024/1024);
   // set up dataset access property list 
   hid_t dxf_id = H5Pcreate(H5P_DATASET_XFER);
-
   H5Pset_dxpl_mpio(dxf_id, H5FD_MPIO_COLLECTIVE);
   // define local memory space
+  
+  // create file space and dataset
   hsize_t ggdims[2] = {gdims[0]*niter, gdims[1]};
   hid_t filespace = H5Screate_simple(2, ggdims, NULL);
 
-  // write dataset;
-#ifdef DEBUG
-  if (rank==0) cout << "H5Dwrite ...\n" << endl; 
-#endif
+  hid_t dt = H5Tcopy(H5T_NATIVE_INT);
+  tt.start_clock("H5Dcreate");
+  hid_t dset_id = H5Dcreate(file_id, "dset", dt, filespace, H5P_DEFAULT,
+			    H5P_DEFAULT, H5P_DEFAULT);
+  tt.stop_clock("H5Dcreate"); 
+  hsize_t size;
   size = get_buf_size(memspace, dt);
-  cout << "size: " << float(size)/1024/1024 << "MB - " << H5Tget_size(H5T_NATIVE_INT) << endl; 
+  if (rank==0) printf(" mspace size: %f MB | sizeof (element) %lu", float(size)/1024/1024, H5Tget_size(H5T_NATIVE_INT));
+  size = get_buf_size(filespace, dt);
+  if (rank==0) printf(" fspace size: %f MB | sizeof (element) %lu", float(size)/1024/1024, H5Tget_size(H5T_NATIVE_INT));
+  
+  hsize_t count[2] = {1, 1};
   for (int i=0; i<niter; i++) {
+    tt.start_clock("Init_array"); 
+    for(int j=0; j<ldims[0]*ldims[1]; j++)
+      data[j] = i;
+    tt.stop_clock("Init_array"); 
+    if (rank==0) printf("  **Memory rate: %f MB/s\n", d1*d2*sizeof(int)/tt["Init_array"].t/1024/1024);
     offset[0]= i*gdims[0] + rank*ldims[0];
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, NULL);
+    // select hyperslab
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, count);
+    tt.start_clock("H5Dwrite");
     hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
+    //    H5Fwait();
+    //H5Fflush(file_id, H5F_SCOPE_LOCAL);
+    tt.stop_clock("H5Dwrite");
   }
+  delete [] data;
   Timer T = tt["H5Dwrite"]; 
-  if (rank==0) printf("Write rate: %f MB/s\n", d1*d2*sizeof(int)/T.t*T.num_call/1024/1024); 
+  if (rank==0) printf("Write rate: %f MB/s\n", size/T.t/1024/1024);
+  tt.start_clock("H5close");
   H5Pclose_cache(dxf_id);
   H5Pclose_cache(plist_id);
   H5Dclose_cache(dset_id);
   H5Sclose_cache(filespace);
   H5Sclose_cache(memspace);
   H5Fclose_cache(file_id);
+  tt.stop_clock("H5close");
   bool master = (rank==0); 
   tt.PrintTiming(master); 
-  delete [] data;
   MPI_Finalize();
   return 0;
 }

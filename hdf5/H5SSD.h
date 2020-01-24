@@ -9,7 +9,7 @@ typedef struct _thread_data_t {
   hid_t file_space_id; 
   hid_t xfer_plist_id; 
   int id;
-  const void *buf; // there are two questions: how to save the buffer before conversion? There is a #byte difference between HDF5 and user definition. 
+ void *buf; // there are two questions: how to save the buffer before conversion? There is a #byte difference between HDF5 and user definition. 
   struct _thread_data_t *next; 
 
 } thread_data_t;
