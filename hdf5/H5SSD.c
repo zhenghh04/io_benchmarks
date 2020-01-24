@@ -1,3 +1,16 @@
+/*
+   This is for the prototype design of using node local storage
+   to improve parallel I/O performance. We modify the H5Dwrite function
+   so that the data will write to the local SSD first and then the 
+   background thread will take care of the data migration from 
+   the local SSD to the file system. 
+   
+   We create a pthread for doing I/O work using a first-in-first-out 
+   framework. 
+   
+   Huihuo zheng <huihuo.zheng@anl.gov>
+   1/24/2020
+ */
 #include <stdlib.h>
 #include <pthread.h>
 #include <sys/stat.h>
@@ -35,7 +48,6 @@ H5SSD = {
 	 .request_list = NULL,
 	 .current_request = NULL,
 };
-hid_t ddset, dx;
 /*
   Function for set up the local storage path and capacity.
  */

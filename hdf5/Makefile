@@ -2,7 +2,7 @@
 #!/bin/sh
 CC=cc
 CXX=mpicxx -dynamic  #-Wl,-rpath,/home/hzheng/soft/libfabric/cray-intel-2018/lib/
-CFLAGS:=-O3 -I$(HDF5_ROOT)/include
+CFLAGS:=-O3 -I$(HDF5_ROOT)/include -I../utils
 #CFLAGS+= -DSSD_CACHE_DEBUG -DDEBUG
 #HPCTW=$(HOME)/opt/hpctw
 #HPCTW=/home/morozov/lib/
