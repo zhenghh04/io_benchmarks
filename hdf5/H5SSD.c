@@ -126,7 +126,6 @@ void *H5Dwrite_pthread_func(void *arg) {
 	check_pthread_data(data);
       }
 #endif
-      sleep(1);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
