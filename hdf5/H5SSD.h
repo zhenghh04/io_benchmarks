@@ -26,6 +26,7 @@ typedef struct _SSD_CACHE_IO {
   int offset;
   int ppn;
   int rank;
+  int local_rank;
   void *mmap_ptr;
   MPI_Comm comm;
   pthread_cond_t master_cond;
@@ -46,4 +47,5 @@ herr_t H5Dclose_cache( hid_t id);
 herr_t H5Pclose_cache( hid_t id);
 herr_t H5Sclose_cache( hid_t id);
 void H5Fwait();
+void test_mmap_buf();
 #endif

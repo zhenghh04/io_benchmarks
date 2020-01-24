@@ -48,7 +48,7 @@ int main(int argc, char **argv) {
   MPI_Init(&argc, &argv);
   MPI_Comm_size(comm, &nproc);
   MPI_Comm_rank(comm, &rank);
-  printf("       MPI: I am rank %d of %d \n", rank, nproc);
+  printf("     MPI: I am rank %d of %d \n", rank, nproc);
   // find local array dimension and offset; 
   if (rank==0) {
     printf("     Dim: %llu x %llu\n",  gdims[0], gdims[1]);
@@ -110,7 +110,6 @@ int main(int argc, char **argv) {
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, count);
     tt.start_clock("H5Dwrite");
     hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
-    //    H5Fwait();
     //H5Fflush(file_id, H5F_SCOPE_LOCAL);
     tt.stop_clock("H5Dwrite");
   }
