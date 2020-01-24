@@ -2,20 +2,20 @@
 #define H5FSSD_H_
 #include "hdf5.h"
 typedef struct _thread_data_t {
-// we will use the link structure in C to build the list of I/O tasks
+  // we will use the link structure in C to build the list of I/O tasks
+  
   hid_t dataset_id; 
   hid_t mem_type_id; 
   hid_t mem_space_id; 
   hid_t file_space_id; 
   hid_t xfer_plist_id; 
   int id;
- void *buf; // there are two questions: how to save the buffer before conversion? There is a #byte difference between HDF5 and user definition. 
+  void *buf; 
   struct _thread_data_t *next; 
 
 } thread_data_t;
 
-void check_pthread_data(thread_data_t *pt); 
-
+void check_pthread_data(thread_data_t *pt);
 typedef struct _SSD_CACHE_IO {
   int fd;
   char fname[255];
@@ -23,7 +23,7 @@ typedef struct _SSD_CACHE_IO {
   double mspace_total;
   double mspace_left;
   int num_request;
-  int offset;
+  hsize_t offset;
   int ppn;
   int rank;
   int local_rank;
@@ -48,4 +48,4 @@ herr_t H5Pclose_cache( hid_t id);
 herr_t H5Sclose_cache( hid_t id);
 void H5Fwait();
 void test_mmap_buf();
-#endif
+#endif //H5SSD_H_
