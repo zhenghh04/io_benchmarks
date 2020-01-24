@@ -228,7 +228,8 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   H5SSD.request_list->buf = mmap(NULL, size, PROT_READ, MAP_SHARED, H5SSD.fd, H5SSD.offset);
   fsync(H5SSD.fd);
   msync(H5SSD.request_list->buf, size, MS_SYNC);
-
+  int *p = (int*) H5SSD.request_list->buf;
+  if (H5SSD.rank==0) printf("* test mmap prp: %d\n", p[0]);
   H5SSD.request_list->next = (thread_data_t*) malloc(sizeof(thread_data_t));
   H5SSD.request_list->next->id = H5SSD.request_list->id + 1;
   thread_data_t *data = H5SSD.request_list;   
