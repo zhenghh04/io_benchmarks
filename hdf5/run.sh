@@ -9,4 +9,4 @@ export HDF5_CCIO_DEBUG='yes'
 #aprun -n 128 -j 2 ./parallel_hdf5.x --dim 128 $1
 export SSD_CACHE_PATH=$PWD/SSD/
 
-mpirun -np 16 ./parallel_hdf5.x --scratch $PWD/scratch --niter 8 --dim 1024 1024
+mpirun -np 2 ./parallel_hdf5.x --scratch $PWD/scratch --niter 8 --dim  4 4 

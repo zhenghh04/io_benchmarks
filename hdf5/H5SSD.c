@@ -125,7 +125,8 @@ void *H5Dwrite_pthread_func(void *arg) {
 	check_pthread_data(data);
       }
 #endif
-      data->buf = mmap(NULL, data->size, PROT_READ, MAP_PRIVATE, H5SSD.fd, data->offset);
+      int fd = open(H5SSD.fname, O_RDONLY, 0600);
+      data->buf = mmap(NULL, data->size, PROT_READ, MAP_SHARED, fd, data->offset);
       msync(data->buf, data->size, MS_SYNC);
 #ifdef SSD_CACHE_DEBUG
       int *p = (int*) data->buf;
@@ -135,7 +136,8 @@ void *H5Dwrite_pthread_func(void *arg) {
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
-      
+      munmap(data->buf, data->size);
+      close(H5SSD.fd);
 #ifdef SSD_CACHE_DEBUG
       if (H5SSD.rank==0) {
 	printf("== pthread finished H5Dwrite\n");
@@ -187,6 +189,7 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   printf("SSD file: %s (rank %d)\n", H5SSD.fname, H5SSD.rank);
 #endif
   H5SSD.fd = open(H5SSD.fname,  O_RDWR | O_CREAT | O_TRUNC, 0600);
+  close(H5SSD.fd);
   H5SSD.request_list = (thread_data_t*) malloc(sizeof(thread_data_t)); 
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.request_list->id = 0; 
@@ -222,8 +225,10 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0) printf("Offset: %llu\n", H5SSD.offset);
 #endif
-  int err = pwrite(H5SSD.fd, (char*)buf, size, H5SSD.offset);
-  fsync(H5SSD.fd);
+  int fd = open(H5SSD.fname,  O_WRONLY, 0600);
+  int err = pwrite(fd, (char*)buf, size, H5SSD.offset);
+  fsync(fd);
+  close(fd);  
   H5SSD.request_list->dataset_id = dataset_id; 
   H5SSD.request_list->mem_type_id = mem_type_id;
   H5SSD.request_list->mem_space_id = mem_space_id;
@@ -269,7 +274,7 @@ herr_t H5Fclose_cache( hid_t file_id ) {
   pthread_cond_signal(&H5SSD.io_cond);
   pthread_mutex_unlock(&H5SSD.request_lock);
   pthread_join(H5SSD.pthread, NULL);
-  close(H5SSD.fd);
+
   H5SSD.mspace_left = H5SSD.mspace_total;
   remove(H5SSD.fname);
   return H5Fclose(file_id);
