@@ -227,8 +227,12 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 #endif
   int fd = open(H5SSD.fname,  O_WRONLY, 0600);
   int err = pwrite(fd, (char*)buf, size, H5SSD.offset);
+  close(fd);
+#ifdef __APPLE__
+  fcntl(fd, F_NOCACHE, 1);
+#else
   fsync(fd);
-  close(fd);  
+#endif
   H5SSD.request_list->dataset_id = dataset_id; 
   H5SSD.request_list->mem_type_id = mem_type_id;
   H5SSD.request_list->mem_space_id = mem_space_id;
