@@ -10,6 +10,8 @@ typedef struct _thread_data_t {
   hid_t file_space_id; 
   hid_t xfer_plist_id; 
   int id;
+  hid_t offset;
+  hsize_t size; 
   void *buf; 
   struct _thread_data_t *next; 
 

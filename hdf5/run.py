@@ -51,6 +51,7 @@ if args.SSD!="/local/scratch/":
 if (args.lustre[0]!='/'):
     args.lustre=root+"/"+args.lustre
 os.environ["SSD_CACHE_PATH"]=args.SSD+"/"
+print(args.SSD)
 d1, d2 = [int(d) for d in args.dim.split()]
 if (args.cache==1) :
     exe = " -e SSD_CACHE=yes " + exe 

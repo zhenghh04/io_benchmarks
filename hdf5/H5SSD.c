@@ -34,25 +34,26 @@
 #include "H5SSD.h"
 /* 
    Global variable to define information related to the local storage
- */
+*/
 SSD_CACHE_IO
 H5SSD = {
-	 .num_request = 0,//number of I/O request
-	 .offset = 0, // current offset in the mmap file
-	 .ppn = 1, // number of proc per node
-	 .rank = 0, // rank id in H5F comm
-	 .local_rank = 0, // local rank id
-	 .master_cond =PTHREAD_COND_INITIALIZER, // condition variable
-	 .io_cond = PTHREAD_COND_INITIALIZER, 
-	 .request_lock = PTHREAD_MUTEX_INITIALIZER,
-	 .request_list = NULL,
-	 .current_request = NULL,
+  .num_request = 0,//number of I/O request
+  .offset = 0, // current offset in the mmap file
+  .ppn = 1, // number of proc per node
+  .rank = 0, // rank id in H5F comm
+  .local_rank = 0, // local rank id
+  .master_cond =PTHREAD_COND_INITIALIZER, // condition variable
+  .io_cond = PTHREAD_COND_INITIALIZER, 
+  .request_lock = PTHREAD_MUTEX_INITIALIZER,
+  .request_list = NULL,
+  .current_request = NULL,
 };
 /*
   Function for set up the local storage path and capacity.
- */
+*/
 int setH5SSD() {
   if (getenv("SSD_CACHE_PATH")) {
+    printf("SSD_CACHE_PATH: %s\n", getenv("SSD_CACHE_PATH"));
     strcpy(H5SSD.path, getenv("SSD_CACHE_PATH"));
   } else {
     strcpy(H5SSD.path, "/local/scratch/");
@@ -64,7 +65,7 @@ int setH5SSD() {
 
 /*
   Function for print out information about current job 
- */
+*/
 void check_pthread_data(thread_data_t *pt) {
   printf("********************************************\n");
   printf("***task id: %d\n", pt->id);
@@ -85,7 +86,7 @@ void check_pthread_data(thread_data_t *pt) {
 
 /*
   Obtain size for the memory space;
- */
+*/
 hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   int n= H5Sget_simple_extent_ndims(mspace);
   hsize_t *dim =  new hsize_t[n];
@@ -100,7 +101,7 @@ hsize_t get_buf_size(hid_t mspace, hid_t tid) {
 }
 /* 
    Test current memory buffer by print out the first element.
- */
+*/
 void test_mmap_buf() {
   thread_data_t *data = H5SSD.head; 
   while((data->next!=NULL) and (data->buf!=NULL)) {
@@ -112,32 +113,38 @@ void test_mmap_buf() {
 
 /*
   Thread function
- */
+*/
 void *H5Dwrite_pthread_func(void *arg) {
   while (H5SSD.num_request>=0) {
     if (H5SSD.num_request >0) {
       thread_data_t *data = H5SSD.current_request;
 #ifdef SSD_CACHE_DEBUG
       if (H5SSD.rank == 0) printf("\n== H5Dwrite from pthread ==\n");
-      int *p = (int*) data->buf;
-      if (H5SSD.rank==0) printf("== test mmap prp: %d\n", p[0]);
       if (H5SSD.rank==0) {
 	printf("== pthread starts H5Dwrite\n");
 	check_pthread_data(data);
       }
 #endif
+      data->buf = mmap(NULL, data->size, PROT_READ, MAP_PRIVATE, H5SSD.fd, data->offset);
+      msync(data->buf, data->size, MS_SYNC);
+#ifdef SSD_CACHE_DEBUG
+      int *p = (int*) data->buf;
+      printf("* test mmap prp: %d (%d)\n", p[data->size/4-1], H5SSD.rank);
+#endif
+      MPI_Barrier(MPI_COMM_WORLD);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
+      
 #ifdef SSD_CACHE_DEBUG
       if (H5SSD.rank==0) {
 	printf("== pthread finished H5Dwrite\n");
 	printf("=============================\n\n");
       }
-      
 #endif       
-      H5SSD.current_request=H5SSD.current_request->next;
+
       pthread_mutex_lock(&H5SSD.request_lock);
+      H5SSD.current_request=H5SSD.current_request->next;
       H5SSD.num_request--;
       pthread_mutex_unlock(&H5SSD.request_lock);
     } if (H5SSD.num_request == 0) {
@@ -147,7 +154,7 @@ void *H5Dwrite_pthread_func(void *arg) {
       pthread_mutex_unlock(&H5SSD.request_lock);
     }
   }
-
+  
   return NULL; 
 }
 
@@ -173,6 +180,9 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0) {
     printf("SSD_CACHE: H5Fcreate\n"); 
+    printf("SSD_CACHE: mspace_total: %f MB\n", float(H5SSD.mspace_total)/1024/1024);
+    printf("SSD_CACHE:  mspace_left: %f MB\n", float(H5SSD.mspace_left)/1024/1024);
+    printf("SSD_CACHE:     ssd_path: %s\n", H5SSD.path);
   }
   printf("SSD file: %s (rank %d)\n", H5SSD.fname, H5SSD.rank);
 #endif
@@ -195,8 +205,8 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   if (H5SSD.rank==0)
     printf("SSD_CACHE: H5Dwrite_cache\n"); 
 #endif
-  hsize_t size; 
-  size = get_buf_size(mem_space_id, mem_type_id);
+  hsize_t size = get_buf_size(mem_space_id, mem_type_id);
+  
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
     printf("Buffer size: %f MB\n", float(size)/1024/1024);
@@ -205,12 +215,7 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 #ifdef SSD_CACHE_DEBUG
     printf("H5SSD.mspace_left is not enough, waiting for previous I/O jobs to finish first\n");
 #endif
-    pthread_mutex_lock(&H5SSD.request_lock);
-    while(H5SSD.num_request>0)  {
-      pthread_cond_signal(&H5SSD.io_cond);
-      pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
-    }
-    pthread_mutex_unlock(&H5SSD.request_lock);
+    H5Fwait();
     H5SSD.offset=0;
     H5SSD.mspace_left = H5SSD.mspace_total;
   }
@@ -218,18 +223,14 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   if (H5SSD.rank==0) printf("Offset: %llu\n", H5SSD.offset);
 #endif
   int err = pwrite(H5SSD.fd, (char*)buf, size, H5SSD.offset);
+  fsync(H5SSD.fd);
   H5SSD.request_list->dataset_id = dataset_id; 
   H5SSD.request_list->mem_type_id = mem_type_id;
   H5SSD.request_list->mem_space_id = mem_space_id;
   H5SSD.request_list->file_space_id =file_space_id;
   H5SSD.request_list->xfer_plist_id = dxpl_id;
-
-  
-  H5SSD.request_list->buf = mmap(NULL, size, PROT_READ, MAP_SHARED, H5SSD.fd, H5SSD.offset);
-  fsync(H5SSD.fd);
-  msync(H5SSD.request_list->buf, size, MS_SYNC);
-  int *p = (int*) H5SSD.request_list->buf;
-  if (H5SSD.rank==0) printf("* test mmap prp: %d\n", p[0]);
+  H5SSD.request_list->size = size; 
+  H5SSD.request_list->offset = H5SSD.offset; 
   H5SSD.request_list->next = (thread_data_t*) malloc(sizeof(thread_data_t));
   H5SSD.request_list->next->id = H5SSD.request_list->id + 1;
   thread_data_t *data = H5SSD.request_list;   
