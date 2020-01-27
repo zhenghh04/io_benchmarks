@@ -129,6 +129,7 @@ int main(int argc, char **argv) {
       H5Fflush(file_id, H5F_SCOPE_LOCAL);
     }
     tt.stop_clock("H5Dwrite");
+    sleep(1);
   }
   delete [] data;
   Timer T = tt["H5Dwrite"]; 

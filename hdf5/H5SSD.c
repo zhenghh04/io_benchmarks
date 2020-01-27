@@ -59,7 +59,9 @@ H5SSD = {
 
 int setH5SSD() {
   if (getenv("SSD_CACHE_PATH")) {
+#ifdef SSD_CACHE_DEBUG
     printf("SSD_CACHE_PATH: %s\n", getenv("SSD_CACHE_PATH"));
+#endif
     strcpy(H5SSD.path, getenv("SSD_CACHE_PATH"));
   } else {
     strcpy(H5SSD.path, "/local/scratch/");
@@ -213,7 +215,7 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
 herr_t
 H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 	 hid_t file_space_id, hid_t dxpl_id, const void *buf) {
-  
+  H5Fwait();
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
     printf("SSD_CACHE: H5Dwrite_cache\n"); 
