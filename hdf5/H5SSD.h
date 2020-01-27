@@ -35,7 +35,7 @@ typedef struct _SSD_CACHE_IO {
   pthread_cond_t io_cond;
   pthread_mutex_t request_lock, write_lock;
   pthread_t pthread;
-  thread_data_t *request_list, *current_request, *head; 
+  thread_data_t *request_list, *current_request, *first_request; 
 } SSD_CACHE_IO; 
 hsize_t get_buf_size(hid_t mspace, hid_t tid); 
 hid_t H5Fcreate_cache( const char *name, unsigned flags, 

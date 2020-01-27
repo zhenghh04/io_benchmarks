@@ -48,11 +48,15 @@ H5SSD = {
   .write_lock = PTHREAD_MUTEX_INITIALIZER,
   .request_list = NULL,
   .current_request = NULL,
+  .first_request = NULL,
+  .mspace_total = 137438953472,
+  .mspace_left = 137438953472,
 };
 
 /*
   Function for set up the local storage path and capacity.
 */
+
 int setH5SSD() {
   if (getenv("SSD_CACHE_PATH")) {
     printf("SSD_CACHE_PATH: %s\n", getenv("SSD_CACHE_PATH"));
@@ -60,8 +64,6 @@ int setH5SSD() {
   } else {
     strcpy(H5SSD.path, "/local/scratch/");
   }
-  H5SSD.mspace_total = 137438953472;
-  H5SSD.mspace_left = H5SSD.mspace_total;
   return 0; 
 }
 
@@ -87,28 +89,31 @@ void check_pthread_data(thread_data_t *pt) {
 }
 
 /*
-  Obtain size for the memory space;
+  Obtain buffer size for the memory space;
 */
 hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   int n= H5Sget_simple_extent_ndims(mspace);
-  hsize_t *dim =  new hsize_t[n];
-  hsize_t *mdim = new hsize_t[n];
+  hsize_t *dim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
+  hsize_t *mdim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
+  
   H5Sget_simple_extent_dims(mspace, dim, mdim);
   hsize_t s = 1;
   for(int i=0; i<n; i++) {
     s=s*dim[i];
   }
   s = s*H5Tget_size(tid);
+  free(dim);
+  free(mdim);
   return s;
 }
 /* 
    Test current memory buffer by print out the first element.
 */
 void test_mmap_buf() {
-  thread_data_t *data = H5SSD.head; 
+  thread_data_t *data = H5SSD.first_request; 
   while((data->next!=NULL) and (data->buf!=NULL)) {
     int *p = (int*) data->buf;
-    printf("Test buffer: %d\n", p[0]);
+    printf("Test buffer: %d, %d\n", p[0], p[data->size/sizeof(int)-1]);
     data = data->next; 
   }
 }
@@ -132,12 +137,16 @@ void *H5Dwrite_pthread_func(void *arg) {
       msync(data->buf, data->size, MS_SYNC);
 #ifdef SSD_CACHE_DEBUG
       int *p = (int*) data->buf;
-      printf("* test mmap prp: %d (%d)\n", p[data->size/4-1], H5SSD.rank);
+      printf("* test mmap prp: %d (0), %d(-1), (%d)\n", p[0], p[data->size/4-1], H5SSD.rank);
 #endif
-      MPI_Barrier(MPI_COMM_WORLD);
+      char *buf = (char*) malloc(data->size);
+      char *pp = (char*)data->buf; 
+      for (int i=0; i<data->size; i++) buf[i] = pp[i];
+      sleep(1);
       H5Dwrite(data->dataset_id, data->mem_type_id, 
 	       data->mem_space_id, data->file_space_id, 
-	       data->xfer_plist_id, data->buf);
+	       data->xfer_plist_id,buf);
+      free(buf);
       munmap(data->buf, data->size);
       close(fd);
       remove(data->fname);
@@ -158,7 +167,6 @@ void *H5Dwrite_pthread_func(void *arg) {
       pthread_mutex_unlock(&H5SSD.request_lock);
     }
   }
-  
   return NULL; 
 }
 
@@ -166,7 +174,6 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   int rc = pthread_create(&H5SSD.pthread, NULL, H5Dwrite_pthread_func, NULL);
   srand(time(NULL));   // Initialization, should only be called once.
   setH5SSD();
-  hid_t fd = H5Fcreate(name, flags, fcpl_id, fapl_id);
   MPI_Comm comm;
   MPI_Info info; 
   H5Pget_fapl_mpio(fapl_id, &comm, &info);
@@ -194,9 +201,9 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.request_list->id = 0; 
   H5SSD.current_request = H5SSD.request_list; 
-  H5SSD.head = H5SSD.request_list; 
+  H5SSD.first_request = H5SSD.request_list; 
   pthread_mutex_unlock(&H5SSD.request_lock);
-  return fd; 
+  return H5Fcreate(name, flags, fcpl_id, fapl_id);
 }
 
 

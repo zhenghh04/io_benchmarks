@@ -82,6 +82,7 @@ def read_to_str(fin, string):
         except:
             break
     return line
+exit()
 import json
 import datetime
 fin = open(root+args.directory+"/"+args.output, 'r')
