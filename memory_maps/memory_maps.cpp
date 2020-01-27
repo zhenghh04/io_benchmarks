@@ -494,8 +494,6 @@ int main(int argc, char *argv[]) {
   M2L.raw = tt["m2s2l_write"].t  +tt["m2s2l_sync"].t;
   M2L.close = tt["m2s2l_close"].t;
   M2L.rep = tt["m2s2l_open"].num_call;
-
-  
   reduction_avg(tt["m2s2l_rate"].t_iter, niter, w, std);
   w = w/1024/1024*size;
   std = std/1024/1024*size;
@@ -511,10 +509,9 @@ int main(int argc, char *argv[]) {
   MPI_Barrier(MPI_COMM_WORLD);  
   delete [] myarray;
   delete [] myarrayssd;
-  
 #ifdef DEBUG
   //  tt.PrintTiming(rank==0);
 #endif
-  MPI_Finalize();
+  //MPI_Finalize();
   return 0;
 }

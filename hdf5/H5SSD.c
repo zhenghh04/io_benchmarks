@@ -45,9 +45,11 @@ H5SSD = {
   .master_cond =PTHREAD_COND_INITIALIZER, // condition variable
   .io_cond = PTHREAD_COND_INITIALIZER, 
   .request_lock = PTHREAD_MUTEX_INITIALIZER,
+  .write_lock = PTHREAD_MUTEX_INITIALIZER,
   .request_list = NULL,
   .current_request = NULL,
 };
+
 /*
   Function for set up the local storage path and capacity.
 */
@@ -119,14 +121,14 @@ void *H5Dwrite_pthread_func(void *arg) {
     if (H5SSD.num_request >0) {
       thread_data_t *data = H5SSD.current_request;
 #ifdef SSD_CACHE_DEBUG
-      if (H5SSD.rank == 0) printf("\n== H5Dwrite from pthread ==\n");
       if (H5SSD.rank==0) {
+	printf("\n== H5Dwrite from pthread ==\n");
 	printf("== pthread starts H5Dwrite\n");
 	check_pthread_data(data);
       }
 #endif
-      int fd = open(H5SSD.fname, O_RDONLY, 0600);
-      data->buf = mmap(NULL, data->size, PROT_READ, MAP_SHARED, fd, data->offset);
+      int fd = open(data->fname, O_RDONLY, 0600);
+      data->buf = mmap(NULL, data->size, PROT_READ, MAP_SHARED, fd, 0);
       msync(data->buf, data->size, MS_SYNC);
 #ifdef SSD_CACHE_DEBUG
       int *p = (int*) data->buf;
@@ -137,14 +139,14 @@ void *H5Dwrite_pthread_func(void *arg) {
 	       data->mem_space_id, data->file_space_id, 
 	       data->xfer_plist_id, data->buf);
       munmap(data->buf, data->size);
-      close(H5SSD.fd);
+      close(fd);
+      remove(data->fname);
 #ifdef SSD_CACHE_DEBUG
       if (H5SSD.rank==0) {
 	printf("== pthread finished H5Dwrite\n");
 	printf("=============================\n\n");
       }
 #endif       
-
       pthread_mutex_lock(&H5SSD.request_lock);
       H5SSD.current_request=H5SSD.current_request->next;
       H5SSD.num_request--;
@@ -188,8 +190,6 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   }
   printf("SSD file: %s (rank %d)\n", H5SSD.fname, H5SSD.rank);
 #endif
-  H5SSD.fd = open(H5SSD.fname,  O_RDWR | O_CREAT | O_TRUNC, 0600);
-  close(H5SSD.fd);
   H5SSD.request_list = (thread_data_t*) malloc(sizeof(thread_data_t)); 
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.request_list->id = 0; 
@@ -225,14 +225,18 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0) printf("Offset: %llu\n", H5SSD.offset);
 #endif
-  int fd = open(H5SSD.fname,  O_WRONLY, 0600);
-  int err = pwrite(fd, (char*)buf, size, H5SSD.offset);
-  close(fd);
+  strcpy(H5SSD.request_list->fname, H5SSD.fname);
+  char rnd[255];
+  sprintf(rnd, "-id-%d", H5SSD.request_list->id);
+  strcat(H5SSD.request_list->fname, rnd);
+  int fd = open(H5SSD.request_list->fname,  O_RDWR | O_CREAT | O_TRUNC, 0600);
+  int err = pwrite(fd, (char*)buf, size, 0);
 #ifdef __APPLE__
   fcntl(fd, F_NOCACHE, 1);
 #else
   fsync(fd);
 #endif
+  close(fd);
   H5SSD.request_list->dataset_id = dataset_id; 
   H5SSD.request_list->mem_type_id = mem_type_id;
   H5SSD.request_list->mem_space_id = mem_space_id;
@@ -260,12 +264,19 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
 void H5Fwait() {
   pthread_mutex_lock(&H5SSD.request_lock);
   while(H5SSD.num_request>0)  {
-    pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
     pthread_cond_signal(&H5SSD.io_cond);
+    pthread_cond_wait(&H5SSD.master_cond, &H5SSD.request_lock);
   }
   pthread_mutex_unlock(&H5SSD.request_lock);
 }
 
+void H5TerminatePthread() {
+  pthread_mutex_lock(&H5SSD.request_lock);
+  H5SSD.num_request=-1;
+  pthread_cond_signal(&H5SSD.io_cond);
+  pthread_mutex_unlock(&H5SSD.request_lock);
+  pthread_join(H5SSD.pthread, NULL);
+}
 herr_t H5Fclose_cache( hid_t file_id ) {
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
@@ -273,14 +284,8 @@ herr_t H5Fclose_cache( hid_t file_id ) {
 #endif
   H5Fwait();
   /* join the thread */
-  pthread_mutex_lock(&H5SSD.request_lock);
-  H5SSD.num_request=-1;
-  pthread_cond_signal(&H5SSD.io_cond);
-  pthread_mutex_unlock(&H5SSD.request_lock);
-  pthread_join(H5SSD.pthread, NULL);
-
+  H5TerminatePthread();
   H5SSD.mspace_left = H5SSD.mspace_total;
-  remove(H5SSD.fname);
   return H5Fclose(file_id);
 }
 

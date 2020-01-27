@@ -3,7 +3,7 @@
 #include "hdf5.h"
 typedef struct _thread_data_t {
   // we will use the link structure in C to build the list of I/O tasks
-  
+  char fname[255];
   hid_t dataset_id; 
   hid_t mem_type_id; 
   hid_t mem_space_id; 
@@ -33,7 +33,7 @@ typedef struct _SSD_CACHE_IO {
   MPI_Comm comm;
   pthread_cond_t master_cond;
   pthread_cond_t io_cond;
-  pthread_mutex_t request_lock;
+  pthread_mutex_t request_lock, write_lock;
   pthread_t pthread;
   thread_data_t *request_list, *current_request, *head; 
 } SSD_CACHE_IO; 

@@ -2,7 +2,7 @@
 #!/bin/sh
 HOST=$(shell hostname)
 HPCTW=1
-CFLAGS=-O3 -g #-DSSD_CACHE_DEBUG
+CFLAGS=-O3 -g -I../utils -DSSD_CACHE_DEBUG
 ifeq ($(HOST), zion)
 	CC=g++
 	HPCTW=$(HOME)/opt/hpctw
