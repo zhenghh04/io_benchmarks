@@ -70,7 +70,7 @@ int setH5SSD() {
 }
 
 /*
-  Function for print out information about current job 
+  Function for print out debug information about current I/O task; 
 */
 void check_pthread_data(thread_data_t *pt) {
   printf("********************************************\n");
@@ -91,13 +91,12 @@ void check_pthread_data(thread_data_t *pt) {
 }
 
 /*
-  Obtain buffer size for the memory space;
+  Obtain buffer size from the memory space id and type id;
 */
 hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   int n= H5Sget_simple_extent_ndims(mspace);
   hsize_t *dim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
   hsize_t *mdim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
-  
   H5Sget_simple_extent_dims(mspace, dim, mdim);
   hsize_t s = 1;
   for(int i=0; i<n; i++) {
@@ -108,8 +107,10 @@ hsize_t get_buf_size(hid_t mspace, hid_t tid) {
   free(mdim);
   return s;
 }
+
 /* 
-   Test current memory buffer by print out the first element.
+   Test current memory buffer by print out the 
+   first and last element of all the I/O request.
 */
 void test_mmap_buf() {
   thread_data_t *data = H5SSD.first_request; 
@@ -121,7 +122,12 @@ void test_mmap_buf() {
 }
 
 /*
-  Thread function
+  Thread function for performing H5Dwrite. This function will create 
+  a memory mapped buffer to the file that is on the local storage which 
+  contains the data to be written to the file system. 
+
+  On Theta, the memory mapped buffer currently does not work with H5Dwrite, 
+  we instead allocate a buffer directly to the memory. 
 */
 void *H5Dwrite_pthread_func(void *arg) {
   while (H5SSD.num_request>=0) {
@@ -174,6 +180,18 @@ void *H5Dwrite_pthread_func(void *arg) {
   return NULL; 
 }
 
+/* 
+   Create HDF5 file. Each rank will create a file on the local storage
+   for temperally store the data to be written to the file system. 
+   We also create a local communicator including all the processes on the node.
+   A pthread is created for migrating data from the local storage to the 
+   file system asynchonously. 
+   
+   The function return directly without waiting the I/O thread to finish 
+   the I/O task. However, if the space left on the local storage is not 
+   enough for storing the buffer of the current task, it will wait for the 
+   I/O thread to finsh all the previous tasks.
+ */
 hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fapl_id ) {
   int rc = pthread_create(&H5SSD.pthread, NULL, H5Dwrite_pthread_func, NULL);
   srand(time(NULL));   // Initialization, should only be called once.
@@ -211,10 +229,17 @@ hid_t H5Fcreate_cache( const char *name, unsigned flags, hid_t fcpl_id, hid_t fa
   return H5Fcreate(name, flags, fcpl_id, fapl_id);
 }
 
-
+/*
+  This is the write function appears to the user. 
+  The function arguments are the same with H5Dwrite. 
+  This function writes the buffer to the local storage
+  first and It will create an I/O task and add it to the task 
+  lists, and then wake up the I/O thread to execute 
+  the H5Dwrite function. 
+*/
 herr_t
 H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
-	 hid_t file_space_id, hid_t dxpl_id, const void *buf) {
+	       hid_t file_space_id, hid_t dxpl_id, const void *buf) {
   //  H5Fwait();
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
@@ -268,6 +293,9 @@ H5Dwrite_cache(hid_t dataset_id, hid_t mem_type_id, hid_t mem_space_id,
   return err; 
 }
 
+/*
+  Wait for the pthread to finish all the I/O request
+*/
 void H5Fwait() {
   pthread_mutex_lock(&H5SSD.request_lock);
   while(H5SSD.num_request>0)  {
@@ -277,6 +305,9 @@ void H5Fwait() {
   pthread_mutex_unlock(&H5SSD.request_lock);
 }
 
+/*
+  Terminate the pthread through joining
+ */
 void H5TerminatePthread() {
   pthread_mutex_lock(&H5SSD.request_lock);
   H5SSD.num_request=-1;
@@ -284,13 +315,17 @@ void H5TerminatePthread() {
   pthread_mutex_unlock(&H5SSD.request_lock);
   pthread_join(H5SSD.pthread, NULL);
 }
+
+/* 
+   Wait for the pthread to finish the work and close the file 
+   and terminate the pthread, remove the files on the SSD. 
+ */
 herr_t H5Fclose_cache( hid_t file_id ) {
 #ifdef SSD_CACHE_DEBUG
   if (H5SSD.rank==0)
     printf("SSD_CACHE: H5Fclose\n"); 
 #endif
   H5Fwait();
-  /* join the thread */
   H5TerminatePthread();
   close(H5SSD.fd);
   remove(H5SSD.fname);
@@ -298,17 +333,26 @@ herr_t H5Fclose_cache( hid_t file_id ) {
   return H5Fclose(file_id);
 }
 
-
+/* 
+   Wait for pthread to finish the work and close the property
+ */
 herr_t H5Pclose_cache(hid_t dxf_id) {
   H5Fwait();
   return H5Pclose(dxf_id);
 }
 
+/*
+  Wait for pthread to finish the work and close the dataset 
+ */
 herr_t H5Dclose_cache(hid_t dset_id) {
   H5Fwait();
   return H5Dclose(dset_id);
 }
 
+
+/*
+  Wait for the pthread to finish the work and close the memory space
+ */
 herr_t H5Sclose_cache(hid_t filespace) {
   H5Fwait();
   return H5Sclose(filespace);

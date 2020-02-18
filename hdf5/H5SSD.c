@@ -50,7 +50,7 @@ H5SSD = {
   .write_lock = PTHREAD_MUTEX_INITIALIZER,
   .request_list = NULL,
   .current_request = NULL,
-  .first_request = NULL
+  .first_request = NULL,
 };
 
 /*
