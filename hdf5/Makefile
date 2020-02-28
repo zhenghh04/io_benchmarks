@@ -2,10 +2,14 @@
 #!/bin/sh
 include make.inc
 
-all: parallel_hdf5 test_dset_id
+all: thread_hdf5 parallel_hdf5 test_dset_id
+
+thread_hdf5:
+	$(CXX) $(CFLAGS) -o thread_hdf5.x thread_hdf5.cpp H5SSD.c $(LIBS)
 
 test_dset_id:
 	$(CXX) $(CFLAGS) -o test_dset_id.x test_dset_id.c dset_id.c $(LIBS)
+
 parallel_hdf5:
 	$(CXX) $(CFLAGS) -o parallel_hdf5.x parallel_hdf5.cpp H5SSD.c $(LIBS)
 

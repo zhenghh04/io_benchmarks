@@ -24,7 +24,11 @@ public:
 }; 
 
 class Timing {
+  bool verbose;
  public:
+  Timing(bool verbose=true) {
+    this->verbose = verbose; 
+  }
   vector<Timer> T; 
   void start_clock(string str) {
     int ind =FindIndice(str); 
@@ -78,15 +82,14 @@ class Timing {
     }
     return i; 
   }
-  int PrintTiming(bool master=true) {
-    if (master) {
+  ~Timing() {
+    if (verbose) {
       cout << "\n***************** Timing Information *****************************" << endl;
       for(int i = 0; i<T.size(); i++) {
 	printf("*   %15s:      %5.8f sec        ( %-3d call  )   *\n", T[i].name.c_str(), T[i].t, T[i].num_call); 
       }
       cout << "******************************************************************\n" << endl; 
     }
-    return 0; 
   }
 }; 
 
