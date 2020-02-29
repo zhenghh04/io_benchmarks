@@ -1,11 +1,11 @@
 #!/usr/bin/env python
 # This is for testing SSD cache for read
-import mpi4py
+from mpi4py import MPI
 import h5py
 import argparse
 import numpy as np
 import os
-comm = mpi4py.MPI.COMM_WORLD
+comm = MPI.COMM_WORLD
 parser = argparse.ArgumentParser(description="preparing data set")
 parser.add_argument("--num_images", type=int, default=1024)
 parser.add_argument("--sz", type=int, default=224)

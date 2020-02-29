@@ -13,6 +13,7 @@ herr_t H5Dclose_cache( hid_t id);
 herr_t H5Pclose_cache( hid_t id);
 herr_t H5Sclose_cache( hid_t id);
 void H5Fwait();
+
 void test_mmap_buf();
 
 typedef struct _thread_data_t {
@@ -32,6 +33,7 @@ typedef struct _thread_data_t {
 } thread_data_t;
 
 void check_pthread_data(thread_data_t *pt);
+
 typedef struct _SSD_CACHE_IO {
   int fd;
   char fname[255];

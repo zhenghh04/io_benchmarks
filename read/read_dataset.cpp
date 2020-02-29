@@ -23,6 +23,7 @@
 #include <algorithm>
 #include <vector>
 #include "timing.h"
+#include <assert.h>
 using namespace std;
 #define MAXDIM 1024
 
@@ -139,6 +140,10 @@ int main(int argc, char **argv) {
       tt.start_clock("H5Dread"); 
       H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, H5P_DEFAULT, dat);
       tt.stop_clock("H5Dread"); 
+      if (rank==0)
+	for(int i=0; i<batch_size; i++) {
+	  cout << dat[i*dim/gdims[0]] << " " << id[fs_loc+i+nb*batch_size] << endl; 
+	}
     }
   }
   H5Pclose(plist_id);
