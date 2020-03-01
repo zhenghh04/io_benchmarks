@@ -24,8 +24,10 @@
 #include <vector>
 #include "timing.h"
 #include <assert.h>
+#include "debug.h"
 using namespace std;
 #define MAXDIM 1024
+
 
 void dim_dist(hsize_t gdim, int nproc, int rank, hsize_t *ldim, hsize_t *start) {
   *ldim = gdim/nproc;
@@ -51,7 +53,7 @@ int main(int argc, char **argv) {
   int num_batches = 16;
   int batch_size = 32; 
   int i=0;
-  Timing tt(rank==0); 
+  Timing tt(rank==io_node()); 
   while (i<argc) {
     if (strcmp(argv[i], "--input")==0) {
       strcpy(fname, argv[i+1]); i+=2; 
@@ -75,7 +77,7 @@ int main(int argc, char **argv) {
   hid_t fspace = H5Dget_space(dset);
   hsize_t gdims[MAXDIM];
   int ndims = H5Sget_simple_extent_dims(fspace, gdims, NULL);
-  if (rank==0) {
+  if (rank==io_node()) {
     cout << "\n====== dataset info ======" << endl; 
     cout << "Dataset file: " << fname << endl;
     cout << "Dataset: " << dataset << endl; 
@@ -90,13 +92,14 @@ int main(int argc, char **argv) {
     cout << "Batch size: " << batch_size << endl; 
     cout << "Number of batches per epoch: " << num_batches << endl;
     cout << "Number of epochs: " << epochs << endl;
-    cout << "Shuffling the samples: " << shuffle << endl; 
+    cout << "Shuffling the samples: " << shuffle << endl;
+    cout << "Number of workers: " << nproc << endl; 
   }
-  hsize_t dim = 1;
-  hsize_t *ldims = new hsize_t [ndims];
-  hsize_t *offset = new hsize_t [ndims];
-  hsize_t *count = new hsize_t [ndims];
-  hsize_t *sample = new hsize_t [ndims];
+  hsize_t dim = 1; // compute the size of a single sample
+  hsize_t *ldims = new hsize_t [ndims]; // for one batch of data
+  hsize_t *offset = new hsize_t [ndims]; // the offset
+  hsize_t *count = new hsize_t [ndims]; // number of samples to read 
+  hsize_t *sample = new hsize_t [ndims]; // for one sample
   for(int i=0; i<ndims; i++) {
     dim = dim*gdims[i];
     ldims[i] = gdims[i];
@@ -105,31 +108,40 @@ int main(int argc, char **argv) {
     sample[i] = gdims[i];
   }
   sample[0]=1;
+  dim = dim/gdims[0];
 
   vector<int> id;
   id.resize(gdims[0]);
   for(int i=0; i<gdims[0]; i++) id[i] = i;
   mt19937 g(100);
 
-
   hsize_t ns_loc; // number of sample per worker
   hsize_t fs_loc;  // first sample 
   dim_dist(gdims[0], nproc, rank, &ns_loc, &fs_loc);
 
-  
-  float *dat = new float[dim/gdims[0]*batch_size];
+  float *dat = new float[dim*batch_size];// buffer to store one batch of data
   ldims[0] = batch_size; 
-  hid_t mspace = H5Screate_simple(ndims, ldims, NULL);
+  hid_t mspace = H5Screate_simple(ndims, ldims, NULL); // memory space for one bach of data
 
   for (int ep = 0; ep < epochs; ep++) {
     // shuffle the indices
-    if (shuffle==1) 
+    if (shuffle==1) {
       ::shuffle(id.begin(), id.end(), g);
+      if (rank==io_node() and debug_level()>1) {
+	cout << "Shuffled index" << endl;
+	cout << "* "; 
+	for (int i=0; i<gdims[0]; i++) {
+	  cout << " " << id[i] << "("<< i<< ")";
+	  if (i%8==7) cout << "\n* ";
+	}
+	cout << endl; 
+      }
+    }
 
     for(int nb = 0; nb < num_batches; nb++) {
       // select the file space according to the indices
       tt.start_clock("Select");
-      offset[0] = id[fs_loc+nb*batch_size]; 
+      offset[0] = id[fs_loc+nb*batch_size]; // set the offset
       H5Sselect_hyperslab(fspace, H5S_SELECT_SET, offset, NULL, sample, count);
       for(int i=1; i<batch_size; i++) {
 	offset[0] = id[fs_loc+i+nb*batch_size]; 
@@ -139,11 +151,19 @@ int main(int argc, char **argv) {
       // reading the dataset
       tt.start_clock("H5Dread"); 
       H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, H5P_DEFAULT, dat);
-      tt.stop_clock("H5Dread"); 
-      if (rank==0)
+      tt.stop_clock("H5Dread");
+      int c = 0; 
+      if (rank==io_node() and debug_level()>2) {
+	cout << "=== batch: "<< nb << " \n* " << endl;
+	vector<int> b = vector<int> (id.begin() + fs_loc+nb*batch_size, id.begin() + fs_loc+(nb+1)*batch_size);
+	sort(b.begin(), b.end()); 
 	for(int i=0; i<batch_size; i++) {
-	  cout << dat[i*dim/gdims[0]] << " " << id[fs_loc+i+nb*batch_size] << endl; 
+	  cout << dat[i*dim] << "-" << b[i] << " ";
+	  if (i%8==7) {
+	    cout << "\n* " << endl; 
+	  }
 	}
+      }
     }
   }
   H5Pclose(plist_id);
@@ -153,10 +173,10 @@ int main(int argc, char **argv) {
   H5Fclose(fd);
   double w = num_batches*epochs*batch_size/tt["H5Dread"].t*nproc;
 
-  if (rank==0) {
+  if (rank==io_node()) {
     cout << "\n===== I/O rate =====" << endl;
     cout << "# of images/sec: " << w << endl;
-    cout << "Read rate: " << w*sizeof(float)*dim/gdims[0]/1024/1024 << " MB/s" << endl; 
+    cout << "Read rate: " << w*sizeof(float)*dim/1024/1024 << " MB/s" << endl; 
   }
   delete [] dat;
   delete [] ldims;

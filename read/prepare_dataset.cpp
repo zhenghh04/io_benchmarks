@@ -46,6 +46,7 @@ int main(int argc, char **argv) {
   char fname[255] = "images.h5";
   char dataset[255] = "dataset";
   int num_images = 1024;
+  int sz = 224; 
   int i=0;
   //  Timing tt(rank==0); 
   while (i<argc) {
@@ -55,6 +56,8 @@ int main(int argc, char **argv) {
       strcpy(dataset, argv[i+1]); i+=2; 
     } else if (strcmp(argv[i], "--num_images")==0) {
       num_images = int(atof(argv[i+1])); i+=2;
+    } else if (strcmp(argv[i], "--sz")==0) {
+      sz = int(atof(argv[i+1])); i+=2; 
     } else {
       i=i+1; 
     }
@@ -66,11 +69,11 @@ int main(int argc, char **argv) {
   hid_t dxf_id = H5Pcreate(H5P_DATASET_XFER);
   H5Pset_dxpl_mpio(dxf_id, H5FD_MPIO_COLLECTIVE);
   
-  hsize_t gdims[4] = {hsize_t(num_images), 224, 224, 3}; 
+  hsize_t gdims[4] = {hsize_t(num_images), sz, sz, 3}; 
   hid_t fspace = H5Screate_simple(4, gdims, NULL);  
   hsize_t ns_loc, fs_loc; 
   dim_dist(gdims[0], nproc, rank, &ns_loc, &fs_loc);
-  hsize_t ldims[4] = {ns_loc, 224, 224, 3}; 
+  hsize_t ldims[4] = {ns_loc, sz, sz, 3}; 
   hid_t mspace = H5Screate_simple(4, ldims, NULL);
 
   hsize_t offset[4] = {fs_loc, 0, 0, 0}; 
@@ -82,10 +85,10 @@ int main(int argc, char **argv) {
     cout << "Number of samples in the dataset: " << gdims[0] << endl; 
   }
   
-  float *dat = new float[ns_loc*224*224*3];
+  float *dat = new float[ns_loc*sz*sz*3];
   for(int i=0; i<ns_loc; i++) {
-    for(int j=0; j<224*224*3; j++)
-      dat[i*224*224*3+j] = fs_loc + i; 
+    for(int j=0; j<sz*sz*3; j++)
+      dat[i*sz*sz*3+j] = fs_loc + i; 
   }
 
   H5Sselect_hyperslab(fspace, H5S_SELECT_SET, offset, NULL, ldims, count);
