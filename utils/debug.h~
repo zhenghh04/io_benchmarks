@@ -1,0 +1,9 @@
+#ifndef DEBUG_H__
+#define DEBUG_H__
+#include "stdlib.h"
+#include "stdio.h"
+int debug_level() {
+  if (getenv("DEBUG")!=NULL) return int(atof(getenv("DEBUG")));
+  else return 0; 
+}
+#endif
