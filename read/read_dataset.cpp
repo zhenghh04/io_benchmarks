@@ -12,6 +12,12 @@
   epoch, we mannually partition the entire dataset with nproc pieces - where nproc is 
   the number of workers. 
 
+  Huihuo Zheng @ ALCF
+  Revision history: 
+
+  Feb 29, 2020: Added debug info support.
+  Feb 28, 2020: Created with simple information. 
+
  */
 #include <iostream>
 #include "hdf5.h"
@@ -39,7 +45,6 @@ void dim_dist(hsize_t gdim, int nproc, int rank, hsize_t *ldim, hsize_t *start) 
     *start += gdim%nproc;
   }
 }
-
 
 int main(int argc, char **argv) {
   int rank, nproc; 
@@ -152,7 +157,7 @@ int main(int argc, char **argv) {
       tt.start_clock("H5Dread"); 
       H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, H5P_DEFAULT, dat);
       tt.stop_clock("H5Dread");
-      int c = 0; 
+      // sanity check whether this is what we want. 
       if (rank==io_node() and debug_level()>2) {
 	cout << "=== batch: "<< nb << " \n* " << endl;
 	vector<int> b = vector<int> (id.begin() + fs_loc+nb*batch_size, id.begin() + fs_loc+(nb+1)*batch_size);
@@ -166,6 +171,7 @@ int main(int argc, char **argv) {
       }
     }
   }
+
   H5Pclose(plist_id);
   H5Sclose(mspace);
   H5Sclose(fspace);
@@ -178,6 +184,7 @@ int main(int argc, char **argv) {
     cout << "# of images/sec: " << w << endl;
     cout << "Read rate: " << w*sizeof(float)*dim/1024/1024 << " MB/s" << endl; 
   }
+
   delete [] dat;
   delete [] ldims;
   delete [] offset;
