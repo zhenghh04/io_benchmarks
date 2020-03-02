@@ -15,6 +15,7 @@
   Huihuo Zheng @ ALCF
   Revision history: 
 
+  Mar 1, 2020: added MPIIO support
   Feb 29, 2020: Added debug info support.
   Feb 28, 2020: Created with simple information. 
 
@@ -171,9 +172,8 @@ int main(int argc, char **argv) {
       }
     }
 
-
     for(int nb = 0; nb < num_batches; nb++) {
-      // select the file space according to the indices
+      // hyperslab selection for a batch of data to read for all the workers
       tt.start_clock("Select");
       offset[0] = id[fs_loc+(nb*batch_size)%ns_loc]; // set the offset
       H5Sselect_hyperslab(fspace, H5S_SELECT_SET, offset, NULL, sample, count);
@@ -182,7 +182,7 @@ int main(int argc, char **argv) {
 	H5Sselect_hyperslab(fspace, H5S_SELECT_OR, offset, NULL, sample, count);
       }
       tt.stop_clock("Select");
-      // reading the dataset
+      // reading one batch of data
       tt.start_clock("H5Dread"); 
       H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, dxf_id, dat);
       tt.stop_clock("H5Dread");
@@ -199,7 +199,6 @@ int main(int argc, char **argv) {
 	}
       }
     }
-
   }
 
   H5Pclose(plist_id);
