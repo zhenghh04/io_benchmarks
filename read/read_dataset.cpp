@@ -31,9 +31,13 @@
 #include "timing.h"
 #include <assert.h>
 #include "debug.h"
+#include <iostream>
+#include <unistd.h>
+// POSIX I/O
+#include <sys/stat.h> 
+#include <fcntl.h>
 using namespace std;
 #define MAXDIM 1024
-
 
 void dim_dist(hsize_t gdim, int nproc, int rank, hsize_t *ldim, hsize_t *start) {
   *ldim = gdim/nproc;
@@ -53,10 +57,13 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   char fname[255] = "images.h5";
   char dataset[255] = "dataset";
-  int shuffle = 0;
+  bool shuffle = false;
+  bool mpio_collective = false; 
+  bool mpio_independent = false; 
   int epochs = 1;
   int num_batches = 16;
   int batch_size = 32; 
+  int rank_shift = 0;
   int i=0;
   Timing tt(rank==io_node()); 
   while (i<argc) {
@@ -69,14 +76,23 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "--batch_size")==0) {
       batch_size = int(atof(argv[i+1])); i+=2; 
     } else if (strcmp(argv[i], "--shuffle")==0) {
-      shuffle = int(atof(argv[i+1])); i+=2; 
+      shuffle = true; i=i+1; 
+    } else if (strcmp(argv[i], "--mpio_independent")==0) {
+      mpio_independent = true; i=i+1; 
+    } else if (strcmp(argv[i], "--mpio_collective")==0) {
+      mpio_collective = true; i=i+1; 
     } else if (strcmp(argv[i], "--epochs") == 0) {
       epochs = int(atof(argv[i+1])); i+=2; 
+    } else if (strcmp(argv[i], "--rank_shift")==0) {
+      rank_shift = int(atof(argv[i+1])); i+=2; 
     } else {
       i=i+1; 
     }
   }
   hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
+  if (mpio_collective or mpio_independent) {
+    H5Pset_fapl_mpio(plist_id, MPI_COMM_WORLD, MPI_INFO_NULL);
+  }
   hid_t fd = H5Fopen(fname, H5F_ACC_RDONLY, plist_id);
   hid_t dset = H5Dopen(fd, dataset, H5P_DEFAULT);
   hid_t fspace = H5Dget_space(dset);
@@ -93,6 +109,10 @@ int main(int argc, char **argv) {
       cout << " " << gdims[i];
     }
     cout << endl;
+    cout << "\n====== I/O & MPI info ======" << endl; 
+    cout << "MPIO_COLLECTIVE: " << mpio_collective << endl; 
+    cout << "MPIO_INDEPENDENT: " << mpio_independent << endl; 
+    cout << "rank shift: " << rank_shift << endl; 
     cout << "\n====== training info ======" << endl; 
     cout << "Batch size: " << batch_size << endl; 
     cout << "Number of batches per epoch: " << num_batches << endl;
@@ -127,8 +147,16 @@ int main(int argc, char **argv) {
   float *dat = new float[dim*batch_size];// buffer to store one batch of data
   ldims[0] = batch_size; 
   hid_t mspace = H5Screate_simple(ndims, ldims, NULL); // memory space for one bach of data
-
+  hid_t dxf_id = H5Pcreate(H5P_DATASET_XFER);
+  if (mpio_collective) {
+    H5Pset_dxpl_mpio(dxf_id, H5FD_MPIO_COLLECTIVE);
+  } else if (mpio_independent) {
+    H5Pset_dxpl_mpio(dxf_id, H5FD_MPIO_INDEPENDENT); 
+  } 
   for (int ep = 0; ep < epochs; ep++) {
+    if (rank_shift > 0)
+      dim_dist(gdims[0], nproc, (rank+ep*rank_shift)%nproc, &ns_loc, &fs_loc);
+    if ((io_node()==rank) and (debug_level()>0)) cout << "Clear cache" << endl; 
     // shuffle the indices
     if (shuffle==1) {
       ::shuffle(id.begin(), id.end(), g);
@@ -143,24 +171,25 @@ int main(int argc, char **argv) {
       }
     }
 
+
     for(int nb = 0; nb < num_batches; nb++) {
       // select the file space according to the indices
       tt.start_clock("Select");
-      offset[0] = id[fs_loc+nb*batch_size]; // set the offset
+      offset[0] = id[fs_loc+(nb*batch_size)%ns_loc]; // set the offset
       H5Sselect_hyperslab(fspace, H5S_SELECT_SET, offset, NULL, sample, count);
       for(int i=1; i<batch_size; i++) {
-	offset[0] = id[fs_loc+i+nb*batch_size]; 
+	offset[0] = id[fs_loc+(i+nb*batch_size)%ns_loc]; 
 	H5Sselect_hyperslab(fspace, H5S_SELECT_OR, offset, NULL, sample, count);
       }
       tt.stop_clock("Select");
       // reading the dataset
       tt.start_clock("H5Dread"); 
-      H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, H5P_DEFAULT, dat);
+      H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, dxf_id, dat);
       tt.stop_clock("H5Dread");
       // sanity check whether this is what we want. 
       if (rank==io_node() and debug_level()>2) {
 	cout << "=== batch: "<< nb << " \n* " << endl;
-	vector<int> b = vector<int> (id.begin() + fs_loc+nb*batch_size, id.begin() + fs_loc+(nb+1)*batch_size);
+	vector<int> b = vector<int> (id.begin() + fs_loc+(nb*batch_size)%ns_loc, id.begin() + fs_loc+((nb+1)*batch_size)%ns_loc);
 	sort(b.begin(), b.end()); 
 	for(int i=0; i<batch_size; i++) {
 	  cout << dat[i*dim] << "-" << b[i] << " ";
@@ -170,6 +199,7 @@ int main(int argc, char **argv) {
 	}
       }
     }
+
   }
 
   H5Pclose(plist_id);

@@ -45,8 +45,8 @@ int main(int argc, char **argv) {
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   char fname[255] = "images.h5";
   char dataset[255] = "dataset";
-  int num_images = 1024;
-  int sz = 224; 
+  size_t num_images = 1024;
+  size_t sz = 224; 
   int i=0;
   //  Timing tt(rank==0); 
   while (i<argc) {
@@ -55,9 +55,9 @@ int main(int argc, char **argv) {
     } else if (strcmp(argv[i], "--dataset")==0) {
       strcpy(dataset, argv[i+1]); i+=2; 
     } else if (strcmp(argv[i], "--num_images")==0) {
-      num_images = int(atof(argv[i+1])); i+=2;
+      num_images =size_t(atof(argv[i+1])); i+=2;
     } else if (strcmp(argv[i], "--sz")==0) {
-      sz = int(atof(argv[i+1])); i+=2; 
+      sz = size_t(atof(argv[i+1])); i+=2; 
     } else {
       i=i+1; 
     }
