@@ -200,14 +200,12 @@ int main(int argc, char **argv) {
       }
     }
   }
-
   H5Pclose(plist_id);
   H5Sclose(mspace);
   H5Sclose(fspace);
   H5Dclose(dset);
   H5Fclose(fd);
   double w = num_batches*epochs*batch_size/tt["H5Dread"].t*nproc;
-
   if (rank==io_node()) {
     cout << "\n===== I/O rate =====" << endl;
     cout << "# of images/sec: " << w << endl;
