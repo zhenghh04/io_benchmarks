@@ -3,13 +3,15 @@
 #    
 # -- Huihuo Zheng
 import mpi4py
+from mpi4py import MPI
 import h5py
 import argparse
 import numpy as np
 from threading import Thread
 from queue import Queue
 import time
-comm = mpi4py.MPI.COMM_WORLD
+print("mpi4py", mpi4py.__version__)
+comm = MPI.COMM_WORLD
 import os
 from os import path
 import glob
@@ -73,7 +75,7 @@ def data_migration_thread(queue, terminate, wait=0.01):
     fstr = queue.get()
     while(not terminate):
         a = read_image(fstr)
-        f = node_local_storage + "/" + fstr
+        f = node_local_storage + "/" + fstr.split('/')[-1]
         if (verbose>2):
             print("Copying data %s to node local cache" %fstr)
         os.system("cp %s %s"%(fstr, f))
@@ -135,7 +137,7 @@ class ImageGenerator:
         fstr = self.fname[n]
         try:
             place = self.local_cache_list.find(n)
-            f = os.environ['SSD_CACHE_PATH'] + "/" + fstr
+            f = node_local_storage + "/" + fstr.split('/')[-1]
             return read_image(f)
         except:
             if (self.local_storage_space_left >  4*sz*sz*nc):
