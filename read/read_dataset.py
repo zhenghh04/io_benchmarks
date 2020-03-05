@@ -161,6 +161,7 @@ class ImageGenerator:
                     self.thread.start()
                 self.local_storage_space_left = self.local_storage_space_left - 4*sz*sz*nc
             return read_image(fstr)
+
     def _where_is_image(self, fstr):
         rank = -1
         return rank
