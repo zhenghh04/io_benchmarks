@@ -2,8 +2,18 @@
 # I/O testing for incorparting node local storage in deep learning applications
 #    
 # -- Huihuo Zheng
-import mpi4py
-from mpi4py import MPI
+class C:
+    def __init__(self):
+        self.rank = 0
+        self.size = 1
+
+try:
+    import mpi4py
+    from mpi4py import MPI
+    comm = MPI.COMM_WORLD
+    rank = comm.rank
+except:
+    comm = C()
 import h5py
 import argparse
 import numpy as np
@@ -11,7 +21,7 @@ from threading import Thread
 from queue import Queue
 import time
 print("mpi4py", mpi4py.__version__)
-comm = MPI.COMM_WORLD
+
 import os
 from os import path
 import glob
@@ -23,10 +33,11 @@ parser.add_argument('--batch_size', type=int, default=32, help="batch size")
 parser.add_argument('--num_batches', type=int, default=10, help='Number of batches per epoch')
 parser.add_argument("--epochs", type=int, default=4, help="Number of epochs")
 parser.add_argument("--verbose", type=int, default=0, help='Verbose level')
-parser.add_argument("--nimage", type=int, default=-1, help="Number of image")
+parser.add_argument("--nimages", type=int, default=-1, help="Number of image")
 parser.add_argument("--simulate_compute", type=np.float32, default=0.5, help="Time per training step")
 parser.add_argument("--node_local_storage", type=str, default="SSD/")
 parser.add_argument("--space", type=int, default=1024*1024*1024*128)
+parser.add_argument("--cache", action='store_true')
 args = parser.parse_args()
 sz = 224
 sz = 224
@@ -35,14 +46,14 @@ verbose = args.verbose
 node_local_storage=args.node_local_storage
 space = args.space
 
-print("Deep learning I/O test")
+print("============ Deep learning I/O test ===============")
 print("* batch size: ", args.batch_size)
 print("* number of batches: ", args.num_batches)
 print("* Number of epochs: ", args.epochs)
-print("* nimage: ", args.nimage)
+print("* Number of images: ", args.nimages)
 print("* node_local_storage: ", args.node_local_storage)
 print("* time per step: ", args.simulate_compute)
-print("--------------------------------------------------")
+print("===================================================")
 def read_image(fstr):
     ''' reading a single image'''
     fin = h5py.File(fstr, 'r')
@@ -85,11 +96,11 @@ def data_migration_thread(queue, terminate, wait=0.01):
             break
 
 class ImageGenerator:
-    def __init__(self, directory="./", batch_size=32, shuffle=True, split=True, nimage=-1):
+    def __init__(self, directory="./", batch_size=32, shuffle=True, split=True, nimages=-1):
         self.batch_size = batch_size
         self.directory = directory
         self.fname = glob.glob("%s/*.h5"%self.directory)
-        self.fname=self.fname[:nimage]
+        self.fname=self.fname[:nimages]
         self.index = np.arange(len(self.fname))
         self.file_iterator = None
         self.shuffle=shuffle
@@ -135,6 +146,8 @@ class ImageGenerator:
     
     def _get_one_image(self, n):
         fstr = self.fname[n]
+        if (not args.cache):
+            return read_image(fstr)
         try:
             place = self.local_cache_list.find(n)
             f = node_local_storage + "/" + fstr.split('/')[-1]
@@ -148,8 +161,6 @@ class ImageGenerator:
                     self.thread.start()
                 self.local_storage_space_left = self.local_storage_space_left - 4*sz*sz*nc
             return read_image(fstr)
-
-
     def _where_is_image(self, fstr):
         rank = -1
         return rank
@@ -177,5 +188,5 @@ def train(a, steps_per_epoch, epochs, t=5):
         print("Total time on I/O: %s" %tt)
         print("I/O throughput: %s images/sec" %(args.num_batches*args.batch_size/tt))
     a.terminate_thread()
-a = ImageGenerator("images/", shuffle=True, batch_size=args.batch_size, split=True, nimage=args.nimage)
+a = ImageGenerator("images/", shuffle=True, batch_size=args.batch_size, split=True, nimages=args.nimages)
 train(a, steps_per_epoch=args.num_batches, epochs=args.epochs, t=args.simulate_compute)

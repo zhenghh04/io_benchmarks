@@ -135,7 +135,7 @@ int main(int argc, char **argv) {
   
   hsize_t count[2] = {1, 1};
   tt.start_clock("Init_array"); 
-  for(int j=0; <ldims[0]*ldims[1]; j++)
+  for(int j=0; j<ldims[0]*ldims[1]; j++)
     data[j] = 0;
   tt.stop_clock("Init_array"); 
   for (int i=0; i<niter; i++) {

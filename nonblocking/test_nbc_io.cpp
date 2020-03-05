@@ -75,7 +75,7 @@ int main(int argc, char * argv[])
     simulate_compute(n);
     compute += MPI_Wtime() - start_time;
     start_time = MPI_Wtime();
-    MPI_Wait(request, MPI_STATUS_IGNORE);
+    MPI_Waitall(1, request, MPI_STATUS_IGNORE);
     wait += MPI_Wtime() - start_time;
     start_time = MPI_Wtime();
     MPI_File_close(&handle);
