@@ -1,5 +1,5 @@
 #Makefile
-CXX=mpicxx
+CXX=mpiicc
 CFLAGS=-I$(HDF5_ROOT)/include -O3 -I../utils
 HDF5_LIB=-L$(HDF5_ROOT)/lib -lhdf5
 #xHPCTW=-L$(HOME)/soft/hpctw/gnu -lhpmprof -liberty -lbfd -lz
@@ -11,7 +11,7 @@ all: read_dataset prepare_dataset
 read_dataset: read_dataset.o
 	$(CXX) $(CFLAGS) -o $@ $< $(HDF5_LIB)  $(HPCTW)
 mpi_win: mpi_win.o
-	$(CXX) $(CFLAGS) -o $@ $< $(HPCTW_LIB)
+	$(CXX) $(CFLAGS) -o $@ $< 
 prepare_dataset: prepare_dataset.o
 	$(CXX) $(CFLAGS) -o $@ $< $(HDF5_LIB)
 

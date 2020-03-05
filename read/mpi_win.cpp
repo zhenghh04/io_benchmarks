@@ -32,6 +32,7 @@ int main(int argc, char **argv) {
   int num_batches = 16;
   int batch_size = 32; 
   int sz = 224; 
+  bool shuffle = false; 
   while (i < argc) {
     if (strcmp(argv[i], "--sz")==0) {
       sz = int(atof(argv[i+1]));i+=2;
@@ -44,6 +45,8 @@ int main(int argc, char **argv) {
       num_batches = int(atof(argv[i+1])); i+=2;
     } else if (strcmp(argv[i], "--batch_size")==0) {
       batch_size = int(atof(argv[i+1])); i+=2; 
+    } else if (strcmp(argv[i], "--shuffle")==0) {
+      shuffle = true; i+=1; 
     } else {
       i+=1;
     }
@@ -71,7 +74,7 @@ int main(int argc, char **argv) {
   // This is to create the file which contains the dataset
   vector<int> lst;
   lst.resize(num_images);
-  for(int i=0; i<num_images; i++) lst[i]; 
+  for(int i=0; i<num_images; i++) lst[i]=i; 
 
   int *dataset = new int [nloc*dim];
   for (int i=0; i<nloc; i++) {
@@ -89,9 +92,7 @@ int main(int argc, char **argv) {
   fsync(fd);
 
   MPI_Barrier(MPI_COMM_WORLD);
-  delete [] dataset;
-  MPI_Finalize();
-  return 0;
+  //delete [] dataset;
   // =====================================================================//
   // Create the memory mapped buffer and attach to a MPI Window
   if (io_node()==rank) cout << "* Creating memory map" << endl; 
@@ -105,19 +106,31 @@ int main(int argc, char **argv) {
   if (io_node()==rank) cout << "* Reading data batch by batch using MPI_Get" << endl; 
   int *bd = new int [dim*batch_size];
   for(int e=0; e<epochs; e++) {
-    ::shuffle(lst.begin(), lst.end(), g);
+    if (shuffle) ::shuffle(lst.begin(), lst.end(), g);
     double t1 = 0.0; 
     for (int b = 0; b < num_batches; b++) {
-      MPI_Win_fence(MPI_MODE_NOPUT, win);
+      if (io_node()==rank and debug_level() > 1) cout << "Batch: " << b << endl; 
+
       double t0 = MPI_Wtime();
-      for(int i=0; i< batch_size; i++) {
-	int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
-	int src = dest/nloc;
-	int disp = dest%nloc*dim;
+      MPI_Win_fence(MPI_MODE_NOPUT, win);
+      if (shuffle) {
+	for(int i=0; i< batch_size; i++) {
+	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
+	  int src = dest/nloc;
+	  int disp = dest%nloc*dim;
+	  if (src==rank)
+	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+	  else
+	    MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
+	}
+      } else {
+	int dest = lst[rank*nloc + (b*batch_size)%nloc]; 
+	int src = dest/nloc; 
+	int disp = dest%nloc*dim; 
 	if (src==rank)
-	  memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+	  memcpy(bd, &data[disp], batch_size*dim*sizeof(int));
 	else
-	  MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
+	  MPI_Get(bd, dim*batch_size, MPI_INT, src, disp, dim*batch_size, MPI_INT, win);
       }
       MPI_Win_fence(MPI_MODE_NOPUT, win);
       t1 += MPI_Wtime() - t0; 
@@ -135,14 +148,14 @@ int main(int argc, char **argv) {
       }
     }
     if (io_node()==rank) 
-      printf("Epoch: %d     time: %6.4f    rate: %6.4f MB/sec\n", e, t1,num_images*dim*sizeof(int)/t1/1024/1024);
+      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, num_batches*batch_size/t1, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024);
   }
     
   delete [] bd;
   MPI_Win_free(&win);
   munmap(data, sizeof(int)*dim*nloc);
   close(fd);
-  remove(filename);
+  //  remove(filename);
   MPI_Finalize();
   return 0;
 }
