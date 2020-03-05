@@ -32,7 +32,15 @@ int main(int argc, char **argv) {
   int num_batches = 16;
   int batch_size = 32; 
   int sz = 224; 
-  bool shuffle = false; 
+  bool shuffle = false;
+  int rank, nproc, nloc, start; 
+  MPI_Init(&argc, &argv);
+  MPI_Comm_size(MPI_COMM_WORLD, &nproc);
+  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  if (io_node()==rank) printf("* MPI setup\n"); 
+  printf(" I am rank %d of %d\n", rank, nproc);
+  MPI_Barrier(MPI_COMM_WORLD);
+
   while (i < argc) {
     if (strcmp(argv[i], "--sz")==0) {
       sz = int(atof(argv[i+1]));i+=2;
@@ -51,15 +59,7 @@ int main(int argc, char **argv) {
       i+=1;
     }
   }
-
-  int rank, nproc, nloc, start; 
-  MPI_Init(&argc, &argv);
-  MPI_Comm_size(MPI_COMM_WORLD, &nproc);
-  MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-  num_images = num_images - num_images%nproc; 
-  if (io_node()==rank) printf("* MPI setup\n"); 
-  printf(" I am rank %d of %d\n", rank, nproc);
-  MPI_Barrier(MPI_COMM_WORLD);
+  num_images -= num_images%nproc; //make num_images divisible to nproc;
   nloc = num_images/nproc;
   if (io_node()==rank) {
     cout << " Number of proc: " << nproc << endl; 
@@ -73,26 +73,26 @@ int main(int argc, char **argv) {
   mt19937 g(100);
   // This is to create the file which contains the dataset
   vector<int> lst;
+
   lst.resize(num_images);
-  for(int i=0; i<num_images; i++) lst[i]=i; 
+  for(int i=0; i<num_images; i++) lst[i]=i; // this is the index of the object
 
   int *dataset = new int [nloc*dim];
   for (int i=0; i<nloc; i++) {
     for(int j=0; j<dim; j++) {
-      dataset[i*dim + j] = i+rank*nloc;
+      dataset[i*dim + j] = rank*nloc + i;
     }
   }
   if (io_node()==rank) cout << "* Writing splitted dataset to the file system" << endl; 
   char filename[255] = "test.dat";
   strcat(filename, to_string(rank).c_str());
   int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  
-  ::pwrite(fd, dataset, nloc*dim*sizeof(int), 0);
+  write(fd, (char*) dataset, nloc*dim*sizeof(int));
   close(fd);
   fsync(fd);
 
   MPI_Barrier(MPI_COMM_WORLD);
-  //delete [] dataset;
+  delete [] dataset;
   // =====================================================================//
   // Create the memory mapped buffer and attach to a MPI Window
   if (io_node()==rank) cout << "* Creating memory map" << endl; 
@@ -110,16 +110,18 @@ int main(int argc, char **argv) {
     double t1 = 0.0; 
     for (int b = 0; b < num_batches; b++) {
       if (io_node()==rank and debug_level() > 1) cout << "Batch: " << b << endl; 
-
       double t0 = MPI_Wtime();
       MPI_Win_fence(MPI_MODE_NOPUT, win);
       if (shuffle) {
 	for(int i=0; i< batch_size; i++) {
 	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
 	  int src = dest/nloc;
-	  int disp = dest%nloc*dim;
-	  if (src==rank)
+	  int disp = (dest%nloc)*dim;
+	  cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
+	  assert(disp < dim*nloc and dest < num_images and src < nproc); 
+	  if (src==rank) {
 	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+	  }
 	  else
 	    MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
 	}
