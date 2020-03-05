@@ -1,8 +1,8 @@
 #Makefile
-CXX=mpiicc
+CXX=mpicxx
 CFLAGS=-I$(HDF5_ROOT)/include -O3 -I../utils
 HDF5_LIB=-L$(HDF5_ROOT)/lib -lhdf5
-HPCTW=-L$(HOME)/soft/hpctw/gnu -lhpmprof -liberty -lbfd -lz
+#xHPCTW=-L$(HOME)/soft/hpctw/gnu -lhpmprof -liberty -lbfd -lz
 %.o: %.cpp
 	$(CXX) $(CFLAGS) $(CPPFLAGS) -o $@ -c $< 
 

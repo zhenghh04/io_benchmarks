@@ -4,7 +4,9 @@
    for all the rank to the specific offset of the data. We then perform 
    MPI I/O using MPI_Get with data shuffling. 
 
-   In reality, each rank is responsible for a specific portion of data
+   In reality, each rank is responsible for a specific portion of data. During 
+   the shuffling process. One rank will read the data, and send the data around 
+   to other rank. 
 */
 #include "mpi.h"
 #include "stdio.h"
@@ -46,9 +48,9 @@ int main(int argc, char **argv) {
   MPI_Barrier(MPI_COMM_WORLD);
   nloc = num_images/nproc; 
   if (io_node()==rank) {
-    cout << "Number of proc: " << nproc << endl; 
-    cout << "Number of images: " << num_images << endl; 
-    cout << "Dimension of image: " << dim << endl; 
+    cout << " Number of proc: " << nproc << endl; 
+    cout << " Number of images: " << num_images << endl; 
+    cout << " Dimension of image: " << dim << endl; 
   } 
   mt19937 g(100);
   // This is to create the file which contains the dataset
@@ -64,14 +66,14 @@ int main(int argc, char **argv) {
       dataset[i*dim + j] = i+rank*nloc;
     }
   }
+  if (io_node()==rank) cout << "* Writing data to memory mapped file" << endl; 
   char filename[255] = "test.dat";
-  strcat(filename, to_string(rank).c_str()); 
+  strcat(filename, to_string(rank).c_str());
   int fd = open(filename, O_WRONLY | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
-  
   ::write(fd, dataset, nloc*dim*sizeof(int));
   close(fd);
   fsync(fd);
-  if (io_node()==rank) cout << "Creating memory mapped file" << endl; 
+  if (io_node()==rank) cout << "* Creating memory map" << endl; 
   // Create the memory mapped buffer and attach to a MPI Window
   fd = open(filename, O_RDONLY);
   void *addr = mmap(NULL, nloc*dim*sizeof(int), PROT_READ, MAP_SHARED, fd, 0);
@@ -117,6 +119,7 @@ int main(int argc, char **argv) {
   MPI_Win_free(&win);
   munmap(data, sizeof(int)*dim*nloc);
   close(fd);
+  remove(filename);
   MPI_Finalize();
   return 0;
 }
