@@ -7,6 +7,9 @@
    In reality, each rank is responsible for a specific portion of data. During 
    the shuffling process. One rank will read the data, and send the data around 
    to other rank. 
+   
+   Potential improvements: 
+   - the ranks on the same node to share the same buffer. 
 */
 #include "mpi.h"
 #include "stdio.h"
@@ -117,7 +120,7 @@ int main(int argc, char **argv) {
 	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
 	  int src = dest/nloc;
 	  int disp = (dest%nloc)*dim;
-	  cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
+	  //cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
 	  assert(disp < dim*nloc and dest < num_images and src < nproc); 
 	  if (src==rank) {
 	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
@@ -150,7 +153,7 @@ int main(int argc, char **argv) {
       }
     }
     if (io_node()==rank) 
-      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, num_batches*batch_size/t1, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024);
+      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, nproc*num_batches*batch_size/t1, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024*nproc);
   }
     
   delete [] bd;
