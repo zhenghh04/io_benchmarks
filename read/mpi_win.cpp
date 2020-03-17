@@ -24,8 +24,19 @@
 #include <algorithm>    // std::shuffle
 #include <random>
 #include "debug.h"
+#include "hdf5.h" // for reading hdf5.
+using namespace std;
+void dim_dist(hsize_t gdim, int nproc, int rank, hsize_t *ldim, hsize_t *start) {
+  *ldim = gdim/nproc;
+  *start = *ldim*rank; 
+  if (rank < gdim%nproc) {
+    *ldim += 1;
+    *start += rank;
+  } else {
+    *start += gdim%nproc;
+  }
+}
 
-using namespace std; 
 int main(int argc, char **argv) {
   MPI_Win win;
   int i=0;
@@ -34,9 +45,13 @@ int main(int argc, char **argv) {
   int epochs = 10;
   int num_batches = 16;
   int batch_size = 32; 
-  int sz = 224; 
+  int sz = 224;
+  char fname[255] = "images.h5";
+  char dataset[255] = "dataset";
   bool shuffle = false;
-  int rank, nproc, nloc, start; 
+  int rank, nproc, nloc, start;
+  bool mpio_independent = false;
+  bool mpio_collective = false; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
@@ -48,6 +63,14 @@ int main(int argc, char **argv) {
     if (strcmp(argv[i], "--sz")==0) {
       sz = int(atof(argv[i+1]));i+=2;
       dim = sz*sz*3;
+    } else if (strcmp(argv[i], "--input")==0) {
+      strcpy(fname, argv[i+1]); i+=2;
+    } else if (strcmp(argv[i], "--dataset")==0){
+      strcpy(dataset, argv[i+1]); i+=2;
+    } else if (strcmp(argv[i], "--mpio_independent")==0) {
+      mpio_independent = true; i=i+1; 
+    } else if (strcmp(argv[i], "--mpio_collective")==0) {
+      mpio_collective = true; i=i+1; 
     } else if (strcmp(argv[i], "--num_images")==0) {
       num_images = int(atof(argv[i+1]));i+=2;
     } else if (strcmp(argv[i], "--num_epochs")==0) {
@@ -110,52 +133,56 @@ int main(int argc, char **argv) {
   int *bd = new int [dim*batch_size];
   for(int e=0; e<epochs; e++) {
     if (shuffle) ::shuffle(lst.begin(), lst.end(), g);
-    double t1 = 0.0; 
-    for (int b = 0; b < num_batches; b++) {
-      if (io_node()==rank and debug_level() > 1) cout << "Batch: " << b << endl; 
-      double t0 = MPI_Wtime();
-      MPI_Win_fence(MPI_MODE_NOPUT, win);
-      if (shuffle) {
-	for(int i=0; i< batch_size; i++) {
-	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
-	  int src = dest/nloc;
-	  int disp = (dest%nloc)*dim;
-	  //cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
-	  assert(disp < dim*nloc and dest < num_images and src < nproc); 
-	  if (src==rank) {
-	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+    if (e==0) {
+      // read and then do store MPI_Put(...); 
+    } else {
+      double t1 = 0.0; 
+      for (int b = 0; b < num_batches; b++) {
+	if (io_node()==rank and debug_level() > 1) cout << "Batch: " << b << endl; 
+	double t0 = MPI_Wtime();
+	MPI_Win_fence(MPI_MODE_NOPUT, win);
+	if (shuffle) {
+	  for(int i=0; i< batch_size; i++) {
+	    int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
+	    int src = dest/nloc;
+	    int disp = (dest%nloc)*dim;
+	    //cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
+	    assert(disp < dim*nloc and dest < num_images and src < nproc); 
+	    if (src==rank) {
+	      memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+	    }
+	    else
+	      MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
 	  }
+	} else {
+	  int dest = lst[rank*nloc + (b*batch_size)%nloc]; 
+	  int src = dest/nloc; 
+	  int disp = dest%nloc*dim; 
+	  if (src==rank)
+	    memcpy(bd, &data[disp], batch_size*dim*sizeof(int));
 	  else
-	    MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
+	    MPI_Get(bd, dim*batch_size, MPI_INT, src, disp, dim*batch_size, MPI_INT, win);
 	}
-      } else {
-	int dest = lst[rank*nloc + (b*batch_size)%nloc]; 
-	int src = dest/nloc; 
-	int disp = dest%nloc*dim; 
-	if (src==rank)
-	  memcpy(bd, &data[disp], batch_size*dim*sizeof(int));
-	else
-	  MPI_Get(bd, dim*batch_size, MPI_INT, src, disp, dim*batch_size, MPI_INT, win);
-      }
-      MPI_Win_fence(MPI_MODE_NOPUT, win);
-      t1 += MPI_Wtime() - t0; 
-      for(int i=0; i<batch_size; i++) {
-	assert(bd[i*dim]==lst[rank*nloc+(b*batch_size+i)%nloc]);
-      }
-      if (getenv("DEBUG")!= NULL and int(atof(getenv("DEBUG")))>0) {
-	if (rank==io_node()) {
-	  for(int i=0; i<batch_size; i++) {
-	    printf("%5d: %5d(%5d)    ",i, bd[i*dim], lst[rank*nloc+(b*batch_size+i)%nloc]);
-	    if (i%5==4) printf("\n");
+	MPI_Win_fence(MPI_MODE_NOPUT, win);
+	t1 += MPI_Wtime() - t0; 
+	for(int i=0; i<batch_size; i++) {
+	  assert(bd[i*dim]==lst[rank*nloc+(b*batch_size+i)%nloc]);
+	}
+	if (getenv("DEBUG")!= NULL and int(atof(getenv("DEBUG")))>0) {
+	  if (rank==io_node()) {
+	    for(int i=0; i<batch_size; i++) {
+	      printf("%5d: %5d(%5d)    ",i, bd[i*dim], lst[rank*nloc+(b*batch_size+i)%nloc]);
+	      if (i%5==4) printf("\n");
+	    }
+	    printf("\n");
 	  }
-	  printf("\n");
 	}
       }
     }
     if (io_node()==rank) 
       printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, nproc*num_batches*batch_size/t1, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024*nproc);
   }
-    
+  
   delete [] bd;
   MPI_Win_free(&win);
   munmap(data, sizeof(int)*dim*nloc);

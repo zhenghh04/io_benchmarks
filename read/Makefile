@@ -8,8 +8,12 @@ HDF5_LIB=-L$(HDF5_ROOT)/lib -lhdf5
 
 
 all: mpi_win mpi_win_attach read_dataset prepare_dataset
+read_dataset_cache: read_dataset_cache.o
+	$(CXX) $(CFLAGS) -o $@ $< $(HDF5_LIB) 
+
 read_dataset: read_dataset.o
 	$(CXX) $(CFLAGS) -o $@ $< $(HDF5_LIB)  $(HPCTW)
+
 mpi_win: mpi_win.o
 	$(CXX) $(CFLAGS) -o $@ $<
 mpi_win_attach: test_mpi_win_attach.o

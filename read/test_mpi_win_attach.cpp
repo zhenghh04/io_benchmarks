@@ -34,10 +34,21 @@ int main(int argc, char **argv) {
   }
   MPI_Win_create_dynamic(MPI_INFO_NULL, MPI_COMM_WORLD, &win);
   MPI_Win_attach(win, a, sizeof(int)*dim_a);
-  
+  MPI_Win_attach(win, b, sizeof(int)*dim_b);
+  MPI_Aint *disp = new MPI_Aint [nproc];
+  MPI_Aint *disp_all = new MPI_Aint [nproc];
+  for(int i=0; i<nproc; i++) {
+    disp[i] = 0;
+    disp_all[i] = 0;
+  }
+  MPI_Get_address(b, &disp[rank]);
+  MPI_Allreduce(disp_all, disp, nproc, MPI_AINT, MPI_SUM, MPI_COMM_WORLD);
+  if (rank==0)
+    for (int i=0; i<nproc; i++) 
+      cout << i << ": " << disp_all[i] << ", " << disp[i] << endl;
   MPI_Win_fence(MPI_MODE_NOPUT, win);
   if (nproc > 1) {
-    MPI_Get(&ta, 1, MPI_INT, (rank+1)%nproc, 0, 1, MPI_INT, win);
+    MPI_Get(&ta, 1, MPI_INT, (rank+1)%nproc, disp_all[(rank+1)%nproc], 1, MPI_INT, win);
   } else {
     ta = a[0];
   }
