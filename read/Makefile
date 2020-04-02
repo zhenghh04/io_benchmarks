@@ -1,5 +1,5 @@
 #Makefile
-CXX=mpicxx
+CXX=mpiicc
 CFLAGS=-I$(HDF5_ROOT)/include -O3 -I../utils
 HDF5_LIB=-L$(HDF5_ROOT)/lib -lhdf5
 #xHPCTW=-L$(HOME)/soft/hpctw/gnu -lhpmprof -liberty -lbfd -lz

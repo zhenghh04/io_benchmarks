@@ -21,7 +21,6 @@
 #include <algorithm>    // std::shuffle
 #include <random>
 #include "debug.h"
-
 using namespace std; 
 int main(int argc, char **argv) {
   MPI_Win win;
@@ -69,6 +68,7 @@ int main(int argc, char **argv) {
     cout << " Number of epochs: " << epochs << endl; 
     cout << " Dimension of image: " << dim << endl;
     cout << " Local number of imgs: " << nloc << endl; 
+    cout << " Fraction of dataset sweeping: " << float(num_batches*batch_size)/nloc << endl; 
   } 
   mt19937 g(100);
   // This is to create the file which contains the dataset
@@ -84,9 +84,10 @@ int main(int argc, char **argv) {
     }
   }
   if (io_node()==rank) cout << "* Writing splitted dataset to the file system" << endl; 
+  if (io_node()==rank) cout << "  " << nloc*dim*sizeof(int)/1024/1024 <<" MB " << endl; 
   char filename[255] = "test.dat";
   strcat(filename, to_string(rank).c_str());
-  int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   write(fd, (char*) dataset, nloc*dim*sizeof(int));
   close(fd);
   fsync(fd);
@@ -117,8 +118,8 @@ int main(int argc, char **argv) {
 	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
 	  int src = dest/nloc;
 	  int disp = (dest%nloc)*dim;
-	  cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
-	  assert(disp < dim*nloc and dest < num_images and src < nproc); 
+	  //cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
+	  //assert(disp < dim*nloc and dest < num_images and src < nproc); 
 	  if (src==rank) {
 	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
 	  }
@@ -150,7 +151,7 @@ int main(int argc, char **argv) {
       }
     }
     if (io_node()==rank) 
-      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, num_batches*batch_size/t1, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024);
+      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", e, t1, num_batches*batch_size/t1*nproc, num_batches*batch_size*dim*sizeof(int)/t1/1024/1024*nproc);
   }
     
   delete [] bd;
