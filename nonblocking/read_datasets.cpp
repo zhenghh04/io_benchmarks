@@ -33,14 +33,15 @@ int main(int argc, char * argv[])
   double start_time, total_time;
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
-  MPIO_Request request;
-  MPI_Status status;
+  MPIO_Request* requests;
+  MPI_Status* status;
   int nproc, mype; 
   
-
   int nonblocking=0;
   int batch_size = 32;
   int nbatch = 2048;
+
+  
   double n=1.0; 
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
@@ -65,13 +66,13 @@ int main(int argc, char * argv[])
   }
 
   if (mype==0) {
-    cout << "Tesing prefetch: " << endl; 
-    cout << "Batch size: " << batch_size << endl;
-    cout << "Number of batches: " << nbatch << endl;
-    cout << "Compute time: " << n << " seconds" << endl;
-    cout << "Number of workers: " << nproc << endl; 
+    cout << "        Batch size: " << batch_size << endl;
+    cout << " Number of batches: " << nbatch << endl;
+    cout << "      Compute time: " << n << " seconds" << endl;
+    cout << " Number of workers: " << nproc << endl; 
   }
-  
+  requests = new MPIO_Request [batch_size];
+  status = new MPI_Status [batch_size];
   nel = batch_size * 224*224*3*sizeof(int32_t);
   buffer = new int32_t [nel];
 
@@ -96,13 +97,14 @@ int main(int argc, char * argv[])
       MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDONLY, info, &handle);
       open += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
-      MPI_File_iread(handle, buffer, nel, MPI_INT32_T, &request);
+      for(int b = 0; b < batch_size; b++)
+	MPI_File_iread(handle, &buffer[b*224*224*3*sizeof(int32_t)], nel, MPI_INT32_T, &requests[b]);
       io += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
       simulate_compute(n);
       compute += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
-      MPIO_Wait(&request, &status);
+      MPI_Waitall(batch_size, requests, status);
       wait += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
       MPI_File_close(&handle);
@@ -119,7 +121,8 @@ int main(int argc, char * argv[])
       MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDONLY, info, &handle);
       open += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
-      MPI_File_read(handle, buffer, nel, MPI_INT32_T, MPI_STATUS_IGNORE);
+      for(int b = 0; b < batch_size; b++)
+	MPI_File_read(handle, &buffer[b*224*224*3*sizeof(int32_t)], nel, MPI_INT32_T, MPI_STATUS_IGNORE);
       io += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
       simulate_compute(n);
@@ -131,12 +134,12 @@ int main(int argc, char * argv[])
   }
   double t1 = MPI_Wtime();
   if (mype==0) {
-    cout << "Timing information " << endl; 
-    fprintf(stdout, "open: %.10f \n", open);
-    fprintf(stdout, "io: %.10f \n", io);
-    fprintf(stdout, "close: %.10f \n", close);
-    fprintf(stdout, "wait: %.10f \n", wait);
-    fprintf(stdout, "compute: %.10f \n", compute);
+    cout << " Timing information (seconds): " << endl; 
+    fprintf(stdout, "      open: %.10f \n", open);
+    fprintf(stdout, "      read: %.10f \n", io);
+    fprintf(stdout, "   compute: %.10f \n", compute);
+    fprintf(stdout, "      wait: %.10f \n", wait);
+    fprintf(stdout, "     close: %.10f \n", close);
     fprintf(stdout, "total time: %.10f \n", t1 - t0);
   }
   MPI_Finalize();
