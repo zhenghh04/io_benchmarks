@@ -26,9 +26,6 @@ args = parser.parse_args()
 if args.mpich:
     os.environ['LD_LIBRARY_PATH']="/home/hzheng/soft/mpich/3.3.1-intel-2019/lib:"+os.environ['LD_LIBRARY_PATH']
 if (args.intel):
-    #os.environ['LD_LIBRARY_PATH']='/home/hzheng/soft/intel//intel64/lib/release_mt:/home/hzheng/soft/intel//intel64/lib:/home/hzheng/soft/intel//intel64/libfabric-ugni/lib:'+os.environ['LD_LIBRARY_PATH']
-    #os.environ['I_MPI_PMI']="pmi2"
-    #os.environ['I_MPI_PMI_LIBRARY']="/opt/cray/pe/pmi/default/lib64/libpmi.so"
     os.environ['I_MPI_DEBUG']='120'
 def bytes(string):
     if string.find('m')!=-1:
@@ -40,9 +37,9 @@ def bytes(string):
     else:
         return int(string)
 cb_size = bytes(args.cb_size)
-fs_block_size = bytes(args.fs_block_size)
 if (bytes(args.cb_size)<bytes(args.fs_block_size)):
     args.fs_block_size = args.cb_size
+fs_block_size = bytes(args.fs_block_size)
 if (args.hpctw):
     os.environ['LD_PRELOAD']='/home/huihuo.zheng/mylibs/libmpitrace.so'
 
@@ -104,5 +101,5 @@ for i in range(args.ntrials):
         os.system("mv mpi_profile_%s.* %s"%(i, output))
     os.system("rm -rf testFile")
 if (not args.stdout):
-    os.system("python /getavg.py %s/results"%(output))
+    os.system("/home/huihuo.zheng/Aurora_SDL/io_benchmarks/vpic/getavg.py %s"%(output))
 print("GB: ", args.ppn*args.num_nodes*args.num_particles*4*8/1024.)
