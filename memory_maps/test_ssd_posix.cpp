@@ -22,7 +22,7 @@
 #include "timing.h"
 #include <cmath>
 using namespace std; 
-Timing tt;
+
 #include <sstream>
 struct IOT
 {
@@ -60,6 +60,7 @@ int main(int argc, char *argv[]) {
   MPI_Init(&argc, &argv);
   MPI_Comm_size(MPI_COMM_WORLD, &nproc);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+  Timing tt(rank==0);
   rankReorder = 0; 
   while (i<argc) {
     if (strcmp(argv[i], "--dim") == 0) {
@@ -190,7 +191,6 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  tt.PrintTiming(rank==0);
   MPI_Finalize();
   return 0;
 }

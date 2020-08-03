@@ -33,7 +33,7 @@ int main(int argc, char * argv[])
   double start_time, total_time;
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
-  MPI_Request request;
+  MPIO_Request request;
   MPI_Status status;
   int nproc, mype; 
   
@@ -102,11 +102,11 @@ int main(int argc, char * argv[])
       simulate_compute(n);
       compute += MPI_Wtime() - start_time;
       start_time = MPI_Wtime();
-      MPI_Wait(&request, &status);
-      wait += MPI_Wtime() - start_time;
-      start_time = MPI_Wtime();
       MPI_File_close(&handle);
       close += MPI_Wtime() - start_time;
+      start_time = MPI_Wtime();
+      MPIO_Wait(&request, &status);
+      wait += MPI_Wtime() - start_time;
     }
   } else {
     if (mype==0) fprintf(stdout, "blocking read\n"); 

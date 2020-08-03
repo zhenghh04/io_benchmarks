@@ -1,15 +1,17 @@
 /*
-  This file is for testing reading the data set in parallel in data paralle training. 
-  We assume that the dataset is in a single HDF5 file. Each dataset is stored in the 
+  This benchmark is for testing reading the data set in parallel in data parallel training. 
+  We assume that the entire dataset is in a single HDF5 file. Each dataset is stored in the 
   following way: 
 
-  (nsample, d1, d2 ..., dn)
-
-  Each sample are an n-dimensional array 
+  (nsample, d1, d2 ..., dn), where each sample are an n-dimensional array. 
   
+  The data 
+
   When we read the data, each rank will read a batch of sample randomly or contiguously
-  from the HDF5 file. Each sample has a unique id associate with it. At the begining of 
-  epoch, we mannually partition the entire dataset with nproc pieces - where nproc is 
+  from the HDF5 file depends on whether we do shuffling or not. 
+  Each sample has a unique id associate with it. 
+
+  At the begining of epoch, we mannually partition the entire dataset with nproc pieces - where nproc is 
   the number of workers. 
 
   Huihuo Zheng @ ALCF
