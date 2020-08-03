@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include<sstream>  
 #include <iostream>
+#include <fcntl.h>
 #define RANGE 256
 using namespace std; 
 string int2string(int k) {
@@ -55,11 +56,6 @@ int main(int argc, char * argv[])
     }
   }
 
-  if (mype==0) {
-    cout << "Preparing datasets in datasets/batch_" << endl; 
-    cout << "Batch size: " << batch_size << endl;
-    cout << "Number of batches: " << nbatch << endl; 
-  }
   
   nel = batch_size * 224*224*3*sizeof(int32_t);
   buffer = new int32_t [nel];
@@ -67,16 +63,26 @@ int main(int argc, char * argv[])
   for (int i = 0; i < nel; i++) {
     buffer[i] = mype;
   }
+  if (mype==0) {
+    cout << "Preparing datasets in datasets/batch_" << endl; 
+    cout << "Batch size: " << batch_size << endl;
+    cout << "Number of batches: " << nbatch << endl; 
+    cout << "Number of elements: " << nel << endl; 
+  }
 
   for(int it = mype; it < nbatch; it+=nproc) {
     string lab="./datasets/batch_";
     lab.append(int2string(it));
     lab.append(".dat");
     char *labs = string2char(lab);
-    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_RDWR | MPI_MODE_CREATE, info, &handle);
+    printf("The filename: %s\n", labs); 
+    double t0 = MPI_Wtime();
+    MPI_File_open(MPI_COMM_SELF, labs, MPI_MODE_WRONLY | MPI_MODE_CREATE, info, &handle);
     MPI_File_write(handle, buffer, nel, MPI_INT32_T, &status);
     MPI_File_close(&handle);
+    double t1 = MPI_Wtime() - t0; 
   }
+  
   MPI_Finalize();
   return 0; 
 }
