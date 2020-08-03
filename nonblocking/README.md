@@ -21,4 +21,4 @@ We first write the datasets using write_datasets.x, and then read them using rea
    - run_summit.sh -- submission script on Summit @ OLCF
    - run_macosx.sh -- running script on my laptop where nonblocking works (MPICH with intel compilers)
 
-If the nonblocking I/O works, we will see the write/read time is small. Most of the I/O time shows up in wait. 
+If nonblocking I/O works, we will see the write/read time is small and most of the I/O time shows up in wait. 
