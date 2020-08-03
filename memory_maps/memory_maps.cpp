@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
   int dim=1024*1024*2;
   int niter=1;
   char *ssd = getenv("SSD_CACHE_PATH");
-  char *lustre="./scratch/"; 
+  char lustre[255]="./scratch/"; 
   MPI_File handle;
   MPI_Info info = MPI_INFO_NULL;
   MPI_Status status;
@@ -78,7 +78,7 @@ int main(int argc, char *argv[]) {
       niter = atoi(argv[i+1]); 
       i+=1;
     } else if (strcmp(argv[i], "--lustre") == 0) {
-      lustre = argv[i+1];
+      strcpy(lustre, argv[i+1]);
       i+=1;
     } else if (strcmp(argv[i], "--fsync")==0) {
       fsync = atoi(argv[i+1]);
@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
     double t0 = MPI_Wtime();
     tt.start_clock("w_rate");
     tt.start_clock("w_write"); 
-    write(fd, (char *)myarray, size); 
+    pwrite(fd, (char *)myarray, size, 0); 
     tt.stop_clock("w_write");
     tt.start_clock("w_sync"); 
     if (fsync) ::fsync(fd); 

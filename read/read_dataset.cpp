@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
       mpio_independent = true; i=i+1; 
     } else if (strcmp(argv[i], "--mpio_collective")==0) {
       mpio_collective = true; i=i+1; 
-    } else if (strcmp(argv[i], "--epochs") == 0) {
+    } else if (strcmp(argv[i], "--num_epochs") == 0) {
       epochs = int(atof(argv[i+1])); i+=2; 
     } else if (strcmp(argv[i], "--rank_shift")==0) {
       rank_shift = int(atof(argv[i+1])); i+=2; 
@@ -173,7 +173,7 @@ int main(int argc, char **argv) {
 	cout << endl; 
       }
     }
-
+    double t1 = 0.0; 
     for(int nb = 0; nb < num_batches; nb++) {
       // hyperslab selection for a batch of data to read for all the workers
       tt.start_clock("Select");
@@ -186,7 +186,9 @@ int main(int argc, char **argv) {
       tt.stop_clock("Select");
       // reading one batch of data
       tt.start_clock("H5Dread"); 
+      double t0 = MPI_Wtime();
       H5Dread(dset, H5T_NATIVE_FLOAT, mspace, fspace, dxf_id, dat);
+      t1 += MPI_Wtime() - t0; 
       tt.stop_clock("H5Dread");
       // sanity check whether this is what we want. 
       if (rank==io_node() and debug_level()>2) {
@@ -201,6 +203,8 @@ int main(int argc, char **argv) {
 	}
       }
     }
+    if (io_node()==rank) 
+      printf("Epoch: %d  ---  time: %6.2f (sec) --- throughput: %6.2f (imgs/sec) --- rate: %6.2f (MB/sec)\n", ep, t1, nproc*num_batches*batch_size/t1, nproc*num_batches*batch_size*dim*sizeof(int)/t1/1024/1024);
   }
   H5Pclose(plist_id);
   H5Sclose(mspace);

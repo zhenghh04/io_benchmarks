@@ -13,6 +13,6 @@ echo "****Reading datasets with async calls"
 $run -n 8 --smpiarg="--async" ./read_datasets.x --num_batches 16 --batch_size 64 --compute_time 0.01 --nonblocking 1
 echo "==================="
 echo ""
-echo "****Reading datasets with blocking calls\n"
+echo "****Reading datasets with blocking calls"
 $run -n 8 --smpiarg="--async" ./read_datasets.x --num_batches 16 --batch_size 64 --compute_time 0.01 --nonblocking 0
 

@@ -24,18 +24,8 @@
 #include <algorithm>    // std::shuffle
 #include <random>
 #include "debug.h"
-#include "hdf5.h" // for reading hdf5.
-using namespace std;
-void dim_dist(hsize_t gdim, int nproc, int rank, hsize_t *ldim, hsize_t *start) {
-  *ldim = gdim/nproc;
-  *start = *ldim*rank; 
-  if (rank < gdim%nproc) {
-    *ldim += 1;
-    *start += rank;
-  } else {
-    *start += gdim%nproc;
-  }
-}
+using namespace std; 
+
 
 int main(int argc, char **argv) {
   MPI_Win win;
@@ -95,6 +85,7 @@ int main(int argc, char **argv) {
     cout << " Number of epochs: " << epochs << endl; 
     cout << " Dimension of image: " << dim << endl;
     cout << " Local number of imgs: " << nloc << endl; 
+    cout << " Fraction of dataset sweeping: " << float(num_batches*batch_size)/nloc << endl; 
   } 
   mt19937 g(100);
   // This is to create the file which contains the dataset
@@ -110,9 +101,10 @@ int main(int argc, char **argv) {
     }
   }
   if (io_node()==rank) cout << "* Writing splitted dataset to the file system" << endl; 
+  if (io_node()==rank) cout << "  " << nloc*dim*sizeof(int)/1024/1024 <<" MB " << endl; 
   char filename[255] = "test.dat";
   strcat(filename, to_string(rank).c_str());
-  int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
+  int fd = open(filename, O_RDWR | O_CREAT | O_TRUNC | O_LARGEFILE, S_IRUSR | S_IWUSR | S_IRGRP | S_IROTH);
   write(fd, (char*) dataset, nloc*dim*sizeof(int));
   close(fd);
   fsync(fd);
@@ -133,6 +125,22 @@ int main(int argc, char **argv) {
   int *bd = new int [dim*batch_size];
   for(int e=0; e<epochs; e++) {
     if (shuffle) ::shuffle(lst.begin(), lst.end(), g);
+<<<<<<< HEAD
+    double t1 = 0.0; 
+    for (int b = 0; b < num_batches; b++) {
+      if (io_node()==rank and debug_level() > 1) cout << "Batch: " << b << endl; 
+      double t0 = MPI_Wtime();
+      MPI_Win_fence(MPI_MODE_NOPUT, win);
+      if (shuffle) {
+	for(int i=0; i< batch_size; i++) {
+	  int dest = lst[rank*nloc+(b*batch_size + i)%nloc];
+	  int src = dest/nloc;
+	  int disp = (dest%nloc)*dim;
+	  //cout << rank << ":" << src << " " << disp <<"(" << dim*nloc << ")" << endl; 
+	  //assert(disp < dim*nloc and dest < num_images and src < nproc); 
+	  if (src==rank) {
+	    memcpy(&bd[i*dim], &data[disp], dim*sizeof(int));
+=======
     if (e==0) {
       // read and then do store MPI_Put(...); 
     } else {
@@ -153,6 +161,7 @@ int main(int argc, char **argv) {
 	    }
 	    else
 	      MPI_Get(&bd[i*dim], dim, MPI_INT, src, disp, dim, MPI_INT, win);
+>>>>>>> b9f04309085e95ba44d9191e104273f50eec843a
 	  }
 	} else {
 	  int dest = lst[rank*nloc + (b*batch_size)%nloc]; 

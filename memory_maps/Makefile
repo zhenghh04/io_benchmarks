@@ -10,7 +10,7 @@ ifeq ($(HOST), zion)
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -lintl
 	LIBS=$(MPI_LIBS) 
 else
-	CC=mpicxx -dynamic
+	CC=mpicxx
 	HPCTW=$(HOME)/soft/hpctw/intel
 	CFLAGS += #-DTHETA
 	HPCTW_LIBS=-Wl,-rpath,$(HPCTW) -L$(HPCTW) -lhpmprof_c -lbfd -liberty -lz -pthread
@@ -35,4 +35,4 @@ test_ssd_posix:
 	$(CC) $(CFLAGS) -o test_ssd_posix.x test_ssd_posix.cpp $(LIBS)
 
 clean:
-	rm -rf *.o *~ *.x a.out data* scratch/* mpi_profile.* hpm*
+	rm -rf *.o *~ *.x a.out data* scratch/* mpi_profile.* hpm* *.*.*.*

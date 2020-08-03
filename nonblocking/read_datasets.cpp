@@ -109,6 +109,8 @@ int main(int argc, char * argv[])
       start_time = MPI_Wtime();
       MPI_File_close(&handle);
       close += MPI_Wtime() - start_time;
+      start_time = MPI_Wtime();
+      wait += MPI_Wtime() - start_time;
     }
   } else {
     if (mype==0) fprintf(stdout, "blocking read\n"); 
