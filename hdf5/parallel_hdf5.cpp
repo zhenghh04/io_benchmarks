@@ -19,6 +19,23 @@
 #include <sys/statvfs.h>
 #include <stdlib.h>
 #include "stat.h"
+
+hsize_t get_buf_size(hid_t mspace, hid_t tid) {
+  int n= H5Sget_simple_extent_ndims(mspace);
+  hsize_t *dim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
+  hsize_t *mdim = (hsize_t *) malloc(sizeof(hsize_t)*n); 
+  
+  H5Sget_simple_extent_dims(mspace, dim, mdim);
+  hsize_t s = 1;
+  for(int i=0; i<n; i++) {
+    s=s*dim[i];
+  }
+  s = s*H5Tget_size(tid);
+  free(dim);
+  free(mdim);
+  return s;
+}
+
 int msleep(long miliseconds)
 {
   struct timespec req, rem;
@@ -37,14 +54,6 @@ int msleep(long miliseconds)
 }
 
 int main(int argc, char **argv) {
-  char ssd_cache [255] = "no";
-  if (getenv("SSD_CACHE")) {
-    strcpy(ssd_cache, getenv("SSD_CACHE"));
-  }
-  bool cache = false; 
-  if (strcmp(ssd_cache, "yes")==0) {
-    cache=true;
-  }
   Timing tt; 
   // Assuming that the dataset is a two dimensional array of 8x5 dimension;
   int d1 = 2048; 
@@ -87,7 +96,6 @@ int main(int argc, char **argv) {
     printf(" Scratch: %s\n", scratch); 
     printf("   nproc: %d\n", nproc);
     printf("=============================================\n");
-    if (cache) printf("** using SSD as a cache **\n"); 
   }
   hsize_t offset[2] = {0, 0};
   // setup file access property list for mpio
@@ -100,10 +108,7 @@ int main(int argc, char **argv) {
 
   tt.start_clock("H5Fcreate");   
   hid_t file_id;
-  if (cache)
-    file_id = H5Fcreate_cache(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
-  else 
-    file_id = H5Fcreate(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
+  file_id = H5Fcreate(f, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
   tt.stop_clock("H5Fcreate"); 
 
   // create memory space
@@ -125,8 +130,9 @@ int main(int argc, char **argv) {
   hid_t dset_id = H5Dcreate(file_id, "dset", dt, filespace, H5P_DEFAULT,
 			    H5P_DEFAULT, H5P_DEFAULT);
   tt.stop_clock("H5Dcreate"); 
-  hsize_t size;
+  hsize_t size, fsize, msize;
   size = get_buf_size(memspace, dt);
+  msize = size; 
   if (rank==0) 
     printf(" mspace size: %5.5f MB | sizeof (element) %lu\n", float(size)/1024/1024, H5Tget_size(H5T_NATIVE_INT));
   size = get_buf_size(filespace, dt);
@@ -143,33 +149,22 @@ int main(int argc, char **argv) {
     // select hyperslab
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, offset, NULL, ldims, count);
     tt.start_clock("H5Dwrite");
-    if (cache)
-      hid_t status = H5Dwrite_cache(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
-    else {
-      hid_t status = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
-      H5Fflush(file_id, H5F_SCOPE_LOCAL);
-    }
+    hid_t status = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, dxf_id, data); // write memory to file
+    H5Fflush(file_id, H5F_SCOPE_LOCAL);
     tt.stop_clock("H5Dwrite");
     tt.start_clock("compute");
     msleep(int(sleep*1000));
     tt.stop_clock("compute");
+    double tw = tt["H5Dwrite"].t_iter[i];
+    if (rank==0) printf("  Write rate: %f MB/s\n", msize/tw/1024/1024*nproc);
   }
   tt.start_clock("H5close");
-  if (cache) {
-    H5Pclose_cache(dxf_id);
-    H5Pclose_cache(plist_id);
-    H5Dclose_cache(dset_id);
-    H5Sclose_cache(filespace);
-    H5Sclose_cache(memspace);
-    H5Fclose_cache(file_id);
-  } else {
-    H5Pclose(dxf_id);
-    H5Pclose(plist_id);
-    H5Dclose(dset_id);
-    H5Sclose(filespace);
-    H5Sclose(memspace);
-    H5Fclose(file_id);
-  }
+  H5Pclose(dxf_id);
+  H5Pclose(plist_id);
+  H5Dclose(dset_id);
+  H5Sclose(filespace);
+  H5Sclose(memspace);
+  H5Fclose(file_id);
   tt.stop_clock("H5close");
   bool master = (rank==0); 
   delete [] data;
@@ -178,6 +173,7 @@ int main(int argc, char **argv) {
   double std = 0.0; 
   stat(&tt["H5Dwrite"].t_iter[0], niter, avg, std, 'i');
   if (rank==0) printf("  Write rate: %f +/- %f MB/s\n", size*avg/niter/1024/1024, size/niter*std/1024/1024);
+  if (rank==0) printf("  Overall write rate: %f MB/s\n", size/tt["H5Dwrite"].t/1024/1024);
 
   tt.PrintTiming(master); 
   MPI_Finalize();
