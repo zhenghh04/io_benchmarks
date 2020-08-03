@@ -103,3 +103,6 @@ for i in range(args.ntrials):
     if (not args.stdout):
         os.system("mv mpi_profile_%s.* %s"%(i, output))
     os.system("rm -rf testFile")
+if (not args.stdout):
+    os.system("python /getavg.py %s/results"%(output))
+print("GB: ", args.ppn*args.num_nodes*args.num_particles*4*8/1024.)
