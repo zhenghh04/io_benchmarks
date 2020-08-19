@@ -1,0 +1,31 @@
+CC = cc
+SRCS = $(wildcard *.h *.c) timer.h
+HDRS = $(wildcard *.h)
+OBJS = $(SRCS:.c=.o)
+DIRS = $(subst /, ,$(CURDIR))
+PROJ = vpicio_uni_h5_ind
+
+# HDF5 related
+HDF5root = /global/homes/s/sbyna/software/hdf5develop/install
+H5CFLAGS = -m64 -DUSE_V4_SSE -DOMPI_SKIP_MPICXX
+H5PFLAGS = -I${HDF5root}/include 
+H5LIB = -L. -lm -ldl
+H5PLIB = -L${HDF5root}/lib -lhdf5 -lz
+H5ADD_FLAGS = -DPARALLEL_IO
+
+APP = $(PROJ)
+CFLAGS=-c -w 
+LDFLAGS= -O3 #-openmp 
+LIBS=
+
+all: $(APP)
+
+$(APP): $(OBJS)
+	$(CC) $(LDFLAGS) $(OBJS) -o $(APP) $(LIBS) -I. $(H5LIB) $(H5PLIB) $(H5ADD_FLAGS) -L. -ldl
+
+%.o: %.c $(HDRS) $(MF)
+	$(CC) $(CFLAGS) $(LDFLAGS) $< -o $@ $(H5CFLAGS) $(H5PFLAGS) $(H5ADD_FLAGS)
+
+clean:
+	rm -f *.o $(APP)
+

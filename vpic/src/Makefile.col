@@ -1,0 +1,21 @@
+include make.inc
+EXE=vpicio_uni_h5_col
+
+# Mac
+#HDF5_ROOT=/Users/rzamora/IO/CCIO
+BLD_DIR=mpich
+MPICC=$(CC) $(CFLAGS)
+
+default: ${EXE}
+
+HDF5_INSTALL_DIR=$(HDF5_ROOT)
+
+vpicio_uni_h5_col.o: vpicio_uni_h5.c
+	${MPICC} -c -g -O3 -DUSE_COLLECTIVE -I${HDF5_INSTALL_DIR}/include vpicio_uni_h5.c -o vpicio_uni_h5_col.o
+
+${EXE}: vpicio_uni_h5_col.o
+	${MPICC} vpicio_uni_h5_col.o -o ${EXE} -L${HDF5_INSTALL_DIR}/lib -lhdf5 -lz
+	cp ${EXE} ${HDF5_INSTALL_DIR}/bin
+clean:
+	rm -f vpicio_uni_h5_col.o
+	rm -f ${EXE}
