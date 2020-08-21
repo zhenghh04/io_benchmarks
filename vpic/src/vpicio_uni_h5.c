@@ -187,13 +187,11 @@ int main (int argc, char* argv[])
 
 	plist_id = H5Pcreate(H5P_FILE_ACCESS);
         H5Pset_fapl_mpio(plist_id, comm, info);
-	if (getenv("ALIGNMENT")) 
-	  if (strcmp(getenv("ALIGNMENT"), "yes")!=-1) {
-	    if (my_rank == 0) 
-	      printf("Set Alignment: 16777216\n");
-	    H5Pset_alignment(plist_id, 0, 16777216);
-	  }
-
+	if (getenv("ALIGNMENT")) {
+	  if (my_rank == 0) 
+	    printf("Set Alignment: %s\n", getenv("ALIGNMENT"));
+	  H5Pset_alignment(plist_id, 0, int(atof(getenv("ALIGNMENT"))));
+	}
 	//file = H5PartOpenFileParallel (file_name, H5PART_WRITE | H5PART_VFD_MPIPOSIX | H5PART_FS_LUSTRE, MPI_COMM_WORLD);
 	file_id = H5Fcreate(file_name , H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
         H5Pclose(plist_id);
