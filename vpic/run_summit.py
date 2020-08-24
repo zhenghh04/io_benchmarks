@@ -18,6 +18,7 @@ parser.add_argument("--fs_block_count", type=int, default=1)
 parser.add_argument("--romio_cb_nodes", type=int, default=None)
 parser.add_argument("--romio_cb_size", type=str, default=None)
 parser.add_argument("--stdout", action='store_true')
+parser.add_argument("--align", type=str, default=None)
 args = parser.parse_args()
 def bytes(string):
     if string.find('m')!=-1:
@@ -32,6 +33,8 @@ cb_size = bytes(args.cb_size)
 if (bytes(args.cb_size)<bytes(args.fs_block_size)):
     args.fs_block_size = args.cb_size
 fs_block_size =bytes(args.fs_block_size)
+if (args.align !=None):
+    os.environ['ALIGNMENT']=str(bytes(args.align))
 
 if (args.ind):
     output="ind.n%s.p%s.np%s" %(args.num_nodes, args.ppn, args.num_particles)
