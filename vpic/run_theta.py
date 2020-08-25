@@ -14,7 +14,10 @@ def recMkdir(string):
     os.chdir(dd)
     
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument("--num_nodes", type=int, default=1)
+try:
+    parser.add_argument("--num_nodes", type=int, default=int(os.environ['COBALT_JOBSIZE']))
+except:
+    parser.add_argument("--num_nodes", type=int, default=1)
 parser.add_argument("--ppn", type=int, default=32)
 parser.add_argument("--ind", action='store_true')
 parser.add_argument("--ccio", action='store_true')
@@ -114,5 +117,5 @@ for i in range(args.ntrials):
     else:
         os.system(cmd+">> %s/results"%(output))
     os.system("rnf mpi_profile. mpi_profile_%s."%i)
-#    os.system("mv mpi_profile_%s.* %s"%(i, output))
+    os.system("mv mpi_profile_%s.* %s"%(i, output))
     os.system("rm -rf %s/testFile"%output)
