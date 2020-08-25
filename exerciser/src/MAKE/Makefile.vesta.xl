@@ -1,0 +1,15 @@
+EXE=hdf5Exerciser
+
+default: ${EXE}
+
+HDF5_INSTALL_DIR=$HDF5_ROOT/library/install/ccio
+
+exerciser.o: exerciser.c
+	mpixlc  -c -g -O3 -qlanglvl=extc99 -I${HDF5_INSTALL_DIR}/include  exerciser.c -o exerciser.o
+
+${EXE}: exerciser.o
+	mpixlc exerciser.o -o ${EXE}  -L${HDF5_INSTALL_DIR}/lib -lhdf5 -L/soft/libraries/alcf/current/xl/ZLIB/lib -lz -ldl -lm
+
+clean:
+	rm -f exerciser.o
+	rm -f ${EXE}

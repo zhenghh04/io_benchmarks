@@ -3,6 +3,7 @@
 #COBALT -t 10
 #Example to run the jobs
 #
+export I_MPI_EXTRA_FILESYSTEM=1
 run=aprun
 [ -e datasets ] || mkdir datasets
 echo "****Writing datasets"

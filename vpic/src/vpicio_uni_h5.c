@@ -149,11 +149,11 @@ int main (int argc, char* argv[])
 
 	if (argc == 3)
 	{
-		numparticles = (atoi (argv[2]))*1024*1024;
+	  numparticles = int((atof (argv[2]))*1024*1024);
 	}
 	else
 	{
-		numparticles = 8*1024*1024;
+	  numparticles = 8*1024*1024;
 	}
 
 	if (my_rank == 0) {printf ("Number of particles: %ld \n", numparticles);}

@@ -1,0 +1,18 @@
+include ../make.inc
+EXE=hdf5Exerciser
+
+# THETA
+BLD_DIR=bebop-develop
+MPICC=$(CC) $(CFLAGS) -Dtopo_timing
+
+default: ${EXE}
+
+HDF5_INSTALL_DIR=$(PWD)/../install/hdf5-${BRANCH}
+exerciser.o: exerciser.c
+	${MPICC} -c -g -O3 -I${HDF5_INSTALL_DIR}/include exerciser.c -o exerciser.o 
+${EXE}: exerciser.o
+	${MPICC} exerciser.o -o ${EXE} -Wl,-rpath,${HDF5_INSTALL_DIR}/lib -L${HDF5_INSTALL_DIR}/lib -lhdf5 -lz -lm
+	cp ${EXE} ${HDF5_INSTALL_DIR}/bin
+clean:
+	rm -f exerciser.o
+	rm -f ${EXE}
