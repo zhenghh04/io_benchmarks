@@ -5,7 +5,14 @@ os.environ['MPICH_MPIIO_HINTS_DISPLAY']='1'
 os.environ['LD_PRELOAD']='/soft/perftools/hpctw/INTEL/libhpmprof.so'
 os.environ['HPM_PROFILE_THRESHOLD']='0'
 os.environ['LD_LIBRARY_PATH']='/opt/cray/pe/mpt/7.7.14/gni/mpich-intel-abi/16.0/lib:/home/hzheng/soft/hdf5/ccio-abi/lib:'+os.environ["LD_LIBRARY_PATH"]
-
+def recMkdir(string):
+    dd = os.environ['PWD']
+    directories = string.split('/')
+    for d in directories:
+        os.system("[ -e %s ] || mkdir %s" %(d, d))
+        os.chdir(d)
+    os.chdir(dd)
+    
 parser = argparse.ArgumentParser(description='Process some integers.')
 parser.add_argument("--num_nodes", type=int, default=1)
 parser.add_argument("--ppn", type=int, default=32)
@@ -24,6 +31,9 @@ parser.add_argument("--romio_cb_nodes", type=int, default=None)
 parser.add_argument("--romio_cb_size", type=str, default=None)
 parser.add_argument("--async", action='store_true')
 parser.add_argument("--align", type=str, default=None)
+parser.add_argument("--lustreStripeCount", type=int, default=48)
+parser.add_argument("--lustreStripeSize", type=str, default='16m')
+parser.add_argument("--directory", type=str, default=None)
 args = parser.parse_args()
 if args.mpich:
     os.environ['LD_LIBRARY_PATH']="/home/hzheng/soft/mpich/3.3.1-intel-2019/lib:"+os.environ['LD_LIBRARY_PATH']
@@ -56,8 +66,7 @@ if (args.align !=None):
 output="n%s.p%s" %(args.num_nodes, args.ppn)
 if args.ccio:
     output=output+".cn%s.cs%s.fb%s.ccio"%(args.cb_nodes, args.cb_size, args.fs_block_size)
-if not os.path.exists(output):
-    os.mkdir(output)
+
 execname = "/home/hzheng/soft/hdf5/ccio-abi/bin/vpicio_uni_h5_"
 if (args.ind):
     execname = execname + "ind"
@@ -83,7 +92,10 @@ if ((args.romio_cb_nodes!=None) or (args.romio_cb_size != None)):
     fin.close()
     os.environ['ROMIO_HINTS']=os.environ['PWD']+"/romio_hints"
     output = output + ".rcn%s.rcs%s"%(args.romio_cb_nodes, args.romio_cb_size)
-
+if args.directory!=None:
+    output=args.directory
+recMkdir(output)
+os.system("lfs setstripe --stripe-count %s --stripe-size %s %s"%(args.lustreStripeCount, args.lustreStripeSize, output))
 
 if args.ccio:
     os.environ["HDF5_CCIO_ASYNC"]="yes"
@@ -94,7 +106,7 @@ if args.ccio:
     os.environ["HDF5_CCIO_DEBUG"]="yes"
     os.environ["HDF5_CCIO_CB_NODES"]=str(args.cb_nodes)
     os.environ["HDF5_CCIO_CB_SIZE"]=str(cb_size)
-cmd = "aprun -n %s -N %s %s testFile %s " %(args.num_nodes*args.ppn, args.ppn, execname, args.num_particles)
+cmd = "aprun -n %s -N %s %s %s/testFile %s " %(args.num_nodes*args.ppn, args.ppn, execname, output, args.num_particles)
 print(cmd)
 for i in range(args.ntrials):
     if (args.stdout):
@@ -103,4 +115,4 @@ for i in range(args.ntrials):
         os.system(cmd+">> %s/results"%(output))
     os.system("rnf mpi_profile. mpi_profile_%s."%i)
 #    os.system("mv mpi_profile_%s.* %s"%(i, output))
-    os.system("rm -rf testFile")
+    os.system("rm -rf %s/testFile"%output)
