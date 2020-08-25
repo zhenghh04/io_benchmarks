@@ -7,7 +7,10 @@ os.environ['HPM_PROFILE_THRESHOLD']='0'
 os.environ['LD_LIBRARY_PATH']='/opt/cray/pe/mpt/7.7.14/gni/mpich-intel-abi/16.0/lib:/home/hzheng/soft/hdf5/ccio-abi/lib:'+os.environ["LD_LIBRARY_PATH"]
 
 parser = argparse.ArgumentParser(description='Process some integers.')
-parser.add_argument("--num_nodes", type=int, default=1)
+try:
+    parser.add_argument("--num_nodes", type=int, default=int(os.environ['COBALT_JOBSIZE']))
+except:
+    parser.add_argument("--num_nodes", type=int, default=1)
 parser.add_argument("--ppn", type=int, default=32)
 parser.add_argument("--ind", action='store_true')
 parser.add_argument("--ccio", action='store_true')

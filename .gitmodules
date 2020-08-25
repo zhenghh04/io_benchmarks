@@ -1,0 +1,3 @@
+[submodule "ior/src"]
+	path = ior/src
+	url = https://xgitlab.cels.anl.gov/ExaHDF5/HPC-IOR.git
