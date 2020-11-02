@@ -298,6 +298,7 @@ int main (int argc, char* argv[])
 		timer_msg (2, "flushing data");
 		timer_msg (0, "opening, writing, flushing, and closing file");
 		printf ("\n");
+		printf("Write rate: %6.4f MiB/sec\n", numparticles*num_procs*4/elapse[3]/1024/1024*8); 
 	}
 
 	MPI_Finalize();

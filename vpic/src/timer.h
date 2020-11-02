@@ -48,6 +48,8 @@ extern float elapse[3];
 #define timer_msg(id, msg) \
 	printf("%f seconds elapsed in %s\n", (DTYPE)(elapse[id]), msg);  \
 
+
+
 #define timer_reset(id) elapse[id] = 0
 
 /* Subtract the `struct timeval' values X and Y,
