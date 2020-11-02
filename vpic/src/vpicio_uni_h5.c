@@ -95,43 +95,87 @@ void create_and_write_synthetic_h5_data(int rank)
 	// Note: printf statements are inserted basically
 	// to check the progress. Other than that they can be removed
 	dset_id = H5Dcreate(file_id, "x", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3); 
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, x);
+	timer_off (3); 
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 1 \n");
 
 	dset_id = H5Dcreate(file_id, "y", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, y);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 2 \n");
 
 	dset_id = H5Dcreate(file_id, "z", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, z);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 3 \n");
 
 	dset_id = H5Dcreate(file_id, "id1", H5T_NATIVE_INT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, plist_id, id1);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 4 \n");
 
 	dset_id = H5Dcreate(file_id, "id2", H5T_NATIVE_INT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_INT, memspace, filespace, plist_id, id2);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
+	
 	if (rank == 0) printf ("Written variable 5 \n");
 
 	dset_id = H5Dcreate(file_id, "px", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, px);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
+	
 	if (rank == 0) printf ("Written variable 6 \n");
 
 	dset_id = H5Dcreate(file_id, "py", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, py);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 7 \n");
 
 	dset_id = H5Dcreate(file_id, "pz", H5T_NATIVE_FLOAT, filespace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+	timer_on (3);
         ierr = H5Dwrite(dset_id, H5T_NATIVE_FLOAT, memspace, filespace, plist_id, pz);
+	timer_off (3);
+
+	timer_on (4);
         H5Dclose(dset_id);
+	timer_off (4);
 	if (rank == 0) printf ("Written variable 8 \n");
 }
 
@@ -249,6 +293,8 @@ int main (int argc, char* argv[])
 	{
 		printf ("\nTiming results\n");
 		timer_msg (1, "just writing data");
+		timer_msg (3, "calling H5Dwrite");
+		timer_msg (4, "closing the dataset"); 
 		timer_msg (2, "flushing data");
 		timer_msg (0, "opening, writing, flushing, and closing file");
 		printf ("\n");
